@@ -8,6 +8,7 @@
     - [调整积分key格式化字符串](#%E8%B0%83%E6%95%B4%E7%A7%AF%E5%88%86key%E6%A0%BC%E5%BC%8F%E5%8C%96%E5%AD%97%E7%AC%A6%E4%B8%B2)
     - [注册积分类型](#%E6%B3%A8%E5%86%8C%E7%A7%AF%E5%88%86%E7%B1%BB%E5%9E%8B)
     - [修改配置文件](#%E4%BF%AE%E6%94%B9%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6)
+- [示例](#%E7%A4%BA%E4%BE%8B)
 - [底层设计](#%E5%BA%95%E5%B1%82%E8%AE%BE%E8%AE%A1)
     - [积分类型](#%E7%A7%AF%E5%88%86%E7%B1%BB%E5%9E%8B)
     - [域](#%E5%9F%9F)
@@ -63,11 +64,11 @@ score 是一个积分系统, 可用于会员积分/系统内货币等.
 ## sql文件导入
 
 1. 首先准备一个库名为 `score` 的mysql库. 这个库名可以根据sqlx组件配置的连接db库修改
-2. 创建积分类型表, 积分类型的表文件在[这里](https://github.com/zlyuancn/score/tree/master/db_table/score_type.sql)
+2. 创建积分类型表, 积分类型的表文件在[这里](./db_table/score_type.sql)
 3. 创建积分流水的分表(可选), 默认为2个分表, 分表索引从0开始, 可以通过配置`OpFlowTableShardNums`修改. 一开始应该设计好分表数量, 确认好后暂不支持修改分表数量, 如果你不知道设置为多少就设为1000.
    1. 构建分表的工具为 [stf](https://github.com/zlyuancn/stt/tree/master/stf)
-   2. 积分流水的分表文件在[这里](https://github.com/zlyuancn/score/tree/master/db_table/score_flow_.sql)
-   3. 在[这里](https://github.com/zlyuancn/score/tree/master/db_table/score_flow_.out.sql)可以看到已经生成好了2个分表的sql文件, 可以直接导入.
+   2. 积分流水的分表文件在[这里](./db_table/score_flow_.sql)
+   3. 在[这里](./db_table/score_flow_.out.sql)可以看到已经生成好了2个分表的sql文件, 可以直接导入.
 
 ## 调整积分key格式化字符串
 
@@ -106,13 +107,13 @@ score:
   ScoreDataKeyFormat: "{<uid>}:<domain>:<score_type_id>:score" # 积分数据key格式化字符串
   OrderStatusKeyFormat: "{<uid>}:<order_id>:score_os" # 订单状态key格式化字符串
   GenOrderSeqNoKeyFormat: "<score_type_id>:<score_type_id_shard>:score_sn" # 订单号生成器key格式化字符串
-  GenOrderSeqNoKeyShardNum: 0 # 生成订单序列号key的分片数
+  GenOrderSeqNoKeyShardNum: 1000 # 生成订单序列号key的分片数
 
   ScoreTypeSqlxName: "score" # 积分类型sqlx组件名
   ReloadScoreTypeIntervalSec: 60 # 重新加载积分类型间隔秒数
 
   ScoreFlowSqlxName: "score" # 积分流水记录sqlx组件名
-  WriteScoreFlow: true # 是否写入积分流水
+  WriteScoreFlow: false # 是否写入积分流水
   ScoreFlowTableShardNums: 2 # 积分流水记录表分片数量
 
 # 依赖组件
@@ -123,6 +124,28 @@ components:
   redis: # 参考 https://github.com/zly-app/component/tree/master/redis
     score:
       # ...
+```
+
+---
+
+# 示例
+
+```go
+const (
+  scoreTypeID = 1
+  domain      = "test_domain"
+  uid         = "test_uid"
+)
+
+// 生成订单
+orderID, err := score.Score.GenOrderSeqNo(ctx, scoreTypeID, domain)
+
+// 增加/扣除score
+addStatus, err := score.Score.AddScore(ctx, orderID, scoreTypeID, domain, uid, 100, "add score")
+// 获取score
+score, err := score.Score.GetScore(ctx, scoreTypeID, domain, uid)
+// 重设score
+resetStatus, err := score.Score.ResetScore(ctx, orderID, scoreTypeID, domain, uid, 66, "reset score")
 ```
 
 ---
@@ -141,11 +164,11 @@ components:
 
 ## 订单号
 
-对用户的积分写操作都需要一个订单号来承载这个操作, 订单号是一个全局不重复的字符串, 其生成方式为使用一个key(`<积分类型id>:score_sn`)调用`incr`命令加1, 订单号为`<incr结果值>_<积分类型id>`, 由于将`积分类型id`也写入到了订单号中, 保证了全局不会重复.
+对用户的积分写操作都需要一个订单号来承载这个操作, 订单号是一个全局不重复的字符串, 其生成方式为使用一个key(`<积分类型id>:score_sn`)调用`incr`命令加1, 订单号为`<incr结果值>_<积分类型id>_<域>`, 由于将`积分类型id`也写入到了订单号中, 保证了全局不会重复.
 
 当然这样就造成了热key, 所以需要对这个key进行分片, 比如分1000片, 其key为`<积分类型id>_<分片号>:score_sn`. 这里对分片的选择没有要求, 可以直接随机或者轮询.
 
-而由于加了分片key, 不同分片`incr`后的值会有重复, 所以订单号需要带上分片号, 如`<incr结果值>_<积分类型id>_<分片号>`. 
+而由于加了分片key, 不同分片`incr`后的值会有重复, 所以订单号需要带上分片号, 如`<incr结果值>_<积分类型id>_<域>_<分片号>`. 
 
 ## 流水记录
 

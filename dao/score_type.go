@@ -11,11 +11,11 @@ import (
 const ScoreTypeTableName = "score_type"
 
 type ScoreTypeModel struct {
-	ID                   uint32       `json:"id"`                      // 积分类型id, 用于区分业务
-	ScoreName            string       `json:"score_name"`              // 积分名, 与代码无关, 用于告诉配置人员这个积分类型是什么
-	StartTime            sql.NullTime `json:"start_time"`              // 生效时间
-	EndTime              sql.NullTime `json:"end_time"`                // 失效时间
-	OrderStatusExpireDay uint8        `json:"order_status_expire_day"` // 订单状态保留多少天
+	ID                   uint32       `db:"id"`                      // 积分类型id, 用于区分业务
+	ScoreName            string       `db:"score_name"`              // 积分名, 与代码无关, 用于告诉配置人员这个积分类型是什么
+	StartTime            sql.NullTime `db:"start_time"`              // 生效时间
+	EndTime              sql.NullTime `db:"end_time"`                // 失效时间
+	OrderStatusExpireDay uint8        `db:"order_status_expire_day"` // 订单状态保留多少天
 }
 
 // 获取所有积分类型

@@ -23,6 +23,8 @@ const (
 	templateString_ScoreTypeIDShard = "<score_type_id_shard>"
 )
 
+// status 在redis写入的数据为  操作类型_操作状态_旧值_变更值_新的值
+
 const (
 	// 增加/扣除积分 KEYS=[积分数据key, 订单状态key]  ARGV=[增加/扣除积分值]
 	addScoreLua = `
@@ -30,7 +32,7 @@ const (
 local status = redis.call('GET', KEYS[2])
 -- 如果状态已写入则表示订单已完成, 直接返回状态
 if status ~= false then
-    return status
+    return status .. '_1'
 end
 
 local changeScore = tonumber(ARGV[1])
@@ -58,7 +60,7 @@ end
 
 -- 写入状态
 redis.call('SET', KEYS[2], status)
-return status
+return status .. '_0'
 `
 
 	// 重设积分 KEYS=[积分数据key, 订单状态key]  ARGV=[重设结果]
@@ -67,7 +69,7 @@ return status
 local status = redis.call('GET', KEYS[2])
 -- 如果状态已写入则表示订单已完成, 直接返回状态
 if status ~= false then
-    return status
+    return status .. '_1'
 end
 
 local changeScore = tonumber(ARGV[1])
@@ -84,7 +86,7 @@ status = '3_1_' .. tostring(oldScore) .. '_' .. tostring(changeScore) .. '_' .. 
 
 -- 写入状态
 redis.call('SET', KEYS[2], status)
-return status
+return status .. '_0'
 `
 )
 
@@ -124,55 +126,56 @@ func GetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string
 }
 
 // 生成订单序列号
-func GenOrderSeqNo(ctx context.Context, scoreTypeID uint32) (string, error) {
+func GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string) (string, error) {
 	shard := rand.Int31n(conf.Conf.GenOrderSeqNoKeyShardNum)
 	key := genGenOrderSeqNoKey(scoreTypeID, shard)
 	ret, err := client.ScoreRedisClient.IncrBy(ctx, key, 1).Result()
 	if err != nil {
 		return "", err
 	}
-	const orderSeqNoFormat = "%d_%d_%d"
-	return fmt.Sprintf(orderSeqNoFormat, ret, scoreTypeID, shard), nil
+	const orderSeqNoFormat = "%d_%d_%s_%d"
+	return fmt.Sprintf(orderSeqNoFormat, ret, scoreTypeID, domain, shard), nil
 }
 
 // 增加/扣除积分
-func AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, changeScore uint64) (*model.OrderStatusData, error) {
+func AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, score uint64) (*model.OrderData, model.OrderStatus, error) {
 	scoreDataKey := genScoreDataKey(scoreTypeID, domain, uid)
 	scoreStatusKey := genOrderStatusKey(uid, orderID)
 
-	statusResult, err := client.ScoreRedisClient.Eval(ctx, addScoreLua, []string{scoreDataKey, scoreStatusKey}, changeScore).Result()
+	statusResult, err := client.ScoreRedisClient.Eval(ctx, addScoreLua, []string{scoreDataKey, scoreStatusKey}, score).Result()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	return parseStatus(cast.ToString(statusResult))
 }
 
 // 重设积分
-func ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, changeScore uint64) (*model.OrderStatusData, error) {
+func ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, resetScore uint64) (*model.OrderData, model.OrderStatus, error) {
 	scoreDataKey := genScoreDataKey(scoreTypeID, domain, uid)
 	scoreStatusKey := genOrderStatusKey(uid, orderID)
 
-	statusResult, err := client.ScoreRedisClient.Eval(ctx, resetScoreLua, []string{scoreDataKey, scoreStatusKey}, changeScore).Result()
+	statusResult, err := client.ScoreRedisClient.Eval(ctx, resetScoreLua, []string{scoreDataKey, scoreStatusKey}, resetScore).Result()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	return parseStatus(cast.ToString(statusResult))
 }
 
-func parseStatus(status string) (*model.OrderStatusData, error) {
-	ss := strings.Split(status, "_")
-	if len(ss) != 5 {
-		return nil, fmt.Errorf("parse status err. status=%s", status)
+func parseStatus(statusValue string) (*model.OrderData, model.OrderStatus, error) {
+	ss := strings.Split(statusValue, "_")
+	if len(ss) != 6 {
+		return nil, 0, fmt.Errorf("parse statusValue err. statusValue=%s", statusValue)
 	}
 
-	ret := &model.OrderStatusData{
+	ret := &model.OrderData{
 		OpType:      model.OpType(cast.ToInt8(ss[0])),
-		Status:      model.OrderStatus(cast.ToInt8(ss[1])),
 		OldScore:    cast.ToUint64(ss[2]),
 		ChangeScore: cast.ToUint64(ss[3]),
 		ResultScore: cast.ToUint64(ss[4]),
+		IsReentry:   ss[5] == "1",
 	}
-	return ret, nil
+	status := model.OrderStatus(cast.ToInt8(ss[1]))
+	return ret, status, nil
 }

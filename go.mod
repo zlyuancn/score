@@ -7,7 +7,7 @@ require (
 	github.com/spf13/cast v1.3.0
 	github.com/zly-app/component/redis v0.0.0-20240412035514-1a53087119be
 	github.com/zly-app/component/sqlx v0.0.0-20240412035514-1a53087119be
-	github.com/zly-app/utils/loopload v0.0.0-20240408025849-bf41c82ac3c6
+	github.com/zly-app/utils/loopload v0.0.0-20240509094255-fb7e42f16ee4
 	github.com/zly-app/zapp v1.3.11
 	go.uber.org/zap v1.27.0
 )

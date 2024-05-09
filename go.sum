@@ -460,8 +460,8 @@ github.com/zly-app/component/redis v0.0.0-20240412035514-1a53087119be h1:gHE9VBo
 github.com/zly-app/component/redis v0.0.0-20240412035514-1a53087119be/go.mod h1:pFOGw975Qkzihjyobr8UlHna+94H0JJv2Uo8pgBNN4A=
 github.com/zly-app/component/sqlx v0.0.0-20240412035514-1a53087119be h1:Ng8o3TOr2vt2up82Bxw2y52LGgYCio8kAQw8PZpjHCM=
 github.com/zly-app/component/sqlx v0.0.0-20240412035514-1a53087119be/go.mod h1:uVxXxrOwe33O9wNIVQQWT91OwGiBN6NHdDcZbA97UVw=
-github.com/zly-app/utils/loopload v0.0.0-20240408025849-bf41c82ac3c6 h1:R+UbfGgBJLQ6/SSwLfEqO2TSjF+BdonROzsqoSjzYTY=
-github.com/zly-app/utils/loopload v0.0.0-20240408025849-bf41c82ac3c6/go.mod h1:5W2pmrJNqERdSSJIb/IsZA8Jkj3VSO9ByLy8c63SVYY=
+github.com/zly-app/utils/loopload v0.0.0-20240509094255-fb7e42f16ee4 h1:/zUPGSVI7eFlWmF+r8Qnxvyuidp46iPY2+cP7Z334sw=
+github.com/zly-app/utils/loopload v0.0.0-20240509094255-fb7e42f16ee4/go.mod h1:5W2pmrJNqERdSSJIb/IsZA8Jkj3VSO9ByLy8c63SVYY=
 github.com/zly-app/zapp v1.3.7-0.20231023123435-a4a2bb693891/go.mod h1:xxAyACsD1k2et8PsHV4j40HqVUQQ55sbHEt1J9jIVjU=
 github.com/zly-app/zapp v1.3.7/go.mod h1:xxAyACsD1k2et8PsHV4j40HqVUQQ55sbHEt1J9jIVjU=
 github.com/zly-app/zapp v1.3.11 h1:pXR3uq2Teljnmn60iali9Gzg/A/UbCG42rZQQDpnHhQ=
