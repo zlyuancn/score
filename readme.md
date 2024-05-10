@@ -40,6 +40,7 @@ score 是一个积分系统, 可用于会员积分/系统内货币等.
 - [x] 重置积分
 - [ ] 同用户不同积分类型兑换
 - [ ] 不同用户同积分类型转账
+- [ ] 自定义订单id (用于支持特色业务, 比如领取积分防重发)
 
 
 - [x] 流水记录
@@ -108,6 +109,7 @@ score:
   OrderStatusKeyFormat: "{<uid>}:<order_id>:score_os" # 订单状态key格式化字符串
   GenOrderSeqNoKeyFormat: "<score_type_id>:<score_type_id_shard>:score_sn" # 订单号生成器key格式化字符串
   GenOrderSeqNoKeyShardNum: 1000 # 生成订单序列号key的分片数
+  VerifyOrderIDCreateLessThan: 7 # 操作时验证订单id创建时间小于多少天
 
   ScoreTypeSqlxName: "score" # 积分类型sqlx组件名
   ReloadScoreTypeIntervalSec: 60 # 重新加载积分类型间隔秒数
@@ -164,11 +166,11 @@ resetStatus, err := score.Score.ResetScore(ctx, orderID, scoreTypeID, domain, ui
 
 ## 订单号
 
-对用户的积分写操作都需要一个订单号来承载这个操作, 订单号是一个全局不重复的字符串, 其生成方式为使用一个key(`<积分类型id>:score_sn`)调用`incr`命令加1, 订单号为`<incr结果值>_<积分类型id>_<域>`, 由于将`积分类型id`也写入到了订单号中, 保证了全局不会重复.
+对用户的积分写操作都需要一个订单号来承载这个操作, 订单号是一个全局不重复的字符串, 其生成方式为使用一个key(`<积分类型id>:score_sn`)调用`incr`命令加1, 订单号为`<incr结果值>_<时间戳>_<积分类型id>_<域>`, 由于将`积分类型id`也写入到了订单号中, 保证了全局不会重复.
 
 当然这样就造成了热key, 所以需要对这个key进行分片, 比如分1000片, 其key为`<积分类型id>_<分片号>:score_sn`. 这里对分片的选择没有要求, 可以直接随机或者轮询.
 
-而由于加了分片key, 不同分片`incr`后的值会有重复, 所以订单号需要带上分片号, 如`<incr结果值>_<积分类型id>_<域>_<分片号>`. 
+而由于加了分片key, 不同分片`incr`后的值会有重复, 所以订单号需要带上分片号, 如`<incr结果值>_<分片号>_<时间戳>_<积分类型id>_<域>`. 
 
 ## 流水记录
 

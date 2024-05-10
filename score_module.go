@@ -2,8 +2,12 @@ package score
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
+	"time"
 
+	"github.com/spf13/cast"
 	"go.uber.org/zap"
 
 	"github.com/zly-app/zapp/logger"
@@ -19,8 +23,8 @@ var Score = scoreCli{}
 type scoreCli struct{}
 
 // 获取积分
-func (scoreCli) GetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string) (uint64, error) {
-	err := score_type.CheckScoreTypeValid(ctx, scoreTypeID)
+func (scoreCli) GetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string) (int64, error) {
+	st, err := score_type.GetScoreType(ctx, scoreTypeID)
 	if err != nil {
 		return 0, err
 	}
@@ -29,6 +33,7 @@ func (scoreCli) GetScore(ctx context.Context, scoreTypeID uint32, domain string,
 	if err != nil {
 		logger.Log.Error(ctx, "GetScore dao.GetScore err",
 			zap.Uint32("scoreTypeID", scoreTypeID),
+			zap.String("scoreName", st.ScoreName),
 			zap.String("domain", domain),
 			zap.String("uid", uid),
 			zap.Error(err),
@@ -40,7 +45,7 @@ func (scoreCli) GetScore(ctx context.Context, scoreTypeID uint32, domain string,
 
 // 生成订单号
 func (scoreCli) GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string) (string, error) {
-	err := score_type.CheckScoreTypeValid(ctx, scoreTypeID)
+	st, err := score_type.GetScoreType(ctx, scoreTypeID)
 	if err != nil {
 		return "", err
 	}
@@ -49,6 +54,7 @@ func (scoreCli) GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain st
 	if err != nil {
 		logger.Log.Error(ctx, "GenOrderSeqNo dao.GenOrderSeqNo err",
 			zap.Uint32("scoreTypeID", scoreTypeID),
+			zap.String("scoreName", st.ScoreName),
 			zap.String("domain", domain),
 			zap.Error(err),
 		)
@@ -58,32 +64,50 @@ func (scoreCli) GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain st
 }
 
 // 增加/扣除积分
-func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, score uint64, remark string) (*model.OrderData, error) {
+func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, score int64, remark string) (*model.OrderData, error) {
 	if score == 0 {
 		logger.Log.Error(ctx, "AddScore err",
+			zap.String("orderID", orderID),
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.String("domain", domain),
 			zap.String("uid", uid),
-			zap.Uint64("score", score),
+			zap.Int64("score", score),
 			zap.Error(ErrChangeScoreValueIsZero),
 		)
 		return nil, ErrChangeScoreValueIsZero
 	}
 
 	// 检查积分类型
-	err := score_type.CheckScoreTypeValid(ctx, scoreTypeID)
+	st, err := score_type.GetScoreType(ctx, scoreTypeID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 增减积分
-	data, status, err := dao.AddScore(ctx, orderID, scoreTypeID, domain, uid, score)
+	// 检查订单id
+	err = s.verifyOrderID(orderID, scoreTypeID, domain)
 	if err != nil {
-		logger.Log.Error(ctx, "AddScore dao.AddScore err",
+		logger.Log.Error(ctx, "AddScore verifyOrderID err",
+			zap.String("orderID", orderID),
 			zap.Uint32("scoreTypeID", scoreTypeID),
+			zap.String("scoreName", st.ScoreName),
 			zap.String("domain", domain),
 			zap.String("uid", uid),
-			zap.Uint64("score", score),
+			zap.Int64("score", score),
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	// 增减积分
+	data, status, err := dao.AddScore(ctx, orderID, scoreTypeID, domain, uid, score, int64(st.OrderStatusExpireDay)*86400)
+	if err != nil {
+		logger.Log.Error(ctx, "AddScore dao.AddScore err",
+			zap.String("orderID", orderID),
+			zap.Uint32("scoreTypeID", scoreTypeID),
+			zap.String("scoreName", st.ScoreName),
+			zap.String("domain", domain),
+			zap.String("uid", uid),
+			zap.Int64("score", score),
 			zap.Error(err),
 		)
 		return nil, err
@@ -96,9 +120,9 @@ func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint
 		Domain:      domain,
 		OpType:      uint8(data.OpType),
 		OpStatus:    uint8(status),
-		OldScore:    data.OldScore,
-		ChangeScore: data.ChangeScore,
-		ResultScore: data.ResultScore,
+		OldScore:    uint64(data.OldScore),
+		ChangeScore: uint64(data.ChangeScore),
+		ResultScore: uint64(data.ResultScore),
 		Uid:         uid,
 		Remark:      remark,
 	}
@@ -113,6 +137,7 @@ func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint
 	err = s.checkStatus(status)
 	if err != nil {
 		logger.Log.Error(ctx, "AddScore checkStatus err",
+			zap.String("scoreName", st.ScoreName),
 			zap.Any("flow", flow),
 			zap.Error(err),
 		)
@@ -128,6 +153,8 @@ func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint
 	}
 	if s.checkReentryParamsIsChanged(data, op, changeScore) {
 		logger.Log.Error(ctx, "AddScore checkReentryParamsIsChanged err",
+			zap.String("scoreName", st.ScoreName),
+			zap.Int64("score", score),
 			zap.Any("flow", flow),
 			zap.Error(ErrReentryParamsIsChanged),
 		)
@@ -138,32 +165,50 @@ func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint
 }
 
 // 重设积分
-func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, resetScore uint64, remark string) (*model.OrderData, error) {
-	if resetScore < 0 {
+func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, score int64, remark string) (*model.OrderData, error) {
+	if score < 0 {
 		logger.Log.Error(ctx, "ResetScore err",
+			zap.String("orderID", orderID),
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.String("domain", domain),
 			zap.String("uid", uid),
-			zap.Uint64("resetScore", resetScore),
+			zap.Int64("score", score),
 			zap.Error(ErrSetScoreValueIsLessThanZero),
 		)
 		return nil, ErrSetScoreValueIsLessThanZero
 	}
 
 	// 检查积分类型
-	err := score_type.CheckScoreTypeValid(ctx, scoreTypeID)
+	st, err := score_type.GetScoreType(ctx, scoreTypeID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 重设积分
-	data, status, err := dao.ResetScore(ctx, orderID, scoreTypeID, domain, uid, resetScore)
+	// 检查订单id
+	err = s.verifyOrderID(orderID, scoreTypeID, domain)
 	if err != nil {
-		logger.Log.Error(ctx, "ResetScore dao.ResetScore err",
+		logger.Log.Error(ctx, "ResetScore verifyOrderID err",
+			zap.String("orderID", orderID),
 			zap.Uint32("scoreTypeID", scoreTypeID),
+			zap.String("scoreName", st.ScoreName),
 			zap.String("domain", domain),
 			zap.String("uid", uid),
-			zap.Uint64("resetScore", resetScore),
+			zap.Int64("score", score),
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	// 重设积分
+	data, status, err := dao.ResetScore(ctx, orderID, scoreTypeID, domain, uid, score, int64(st.OrderStatusExpireDay)*86400)
+	if err != nil {
+		logger.Log.Error(ctx, "ResetScore dao.ResetScore err",
+			zap.String("orderID", orderID),
+			zap.Uint32("scoreTypeID", scoreTypeID),
+			zap.String("scoreName", st.ScoreName),
+			zap.String("domain", domain),
+			zap.String("uid", uid),
+			zap.Int64("score", score),
 			zap.Error(err),
 		)
 		return nil, err
@@ -176,9 +221,9 @@ func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID ui
 		Domain:      domain,
 		OpType:      uint8(data.OpType),
 		OpStatus:    uint8(status),
-		OldScore:    data.OldScore,
-		ChangeScore: data.ChangeScore,
-		ResultScore: data.ResultScore,
+		OldScore:    uint64(data.OldScore),
+		ChangeScore: uint64(data.ChangeScore),
+		ResultScore: uint64(data.ResultScore),
 		Uid:         uid,
 		Remark:      remark,
 	}
@@ -193,6 +238,8 @@ func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID ui
 	err = s.checkStatus(status)
 	if err != nil {
 		logger.Log.Error(ctx, "ResetScore checkStatus err",
+			zap.String("scoreName", st.ScoreName),
+			zap.Int64("score", score),
 			zap.Any("flow", flow),
 			zap.Error(err),
 		)
@@ -200,8 +247,9 @@ func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID ui
 	}
 
 	// 检查重入时参数发生了变化
-	if s.checkReentryParamsIsChanged(data, model.OpType_Reset, resetScore) {
-		logger.Log.Error(ctx, "AddScore checkReentryParamsIsChanged err",
+	if s.checkReentryParamsIsChanged(data, model.OpType_Reset, score) {
+		logger.Log.Error(ctx, "ResetScore checkReentryParamsIsChanged err",
+			zap.String("scoreName", st.ScoreName),
 			zap.Any("flow", flow),
 			zap.Error(ErrReentryParamsIsChanged),
 		)
@@ -209,6 +257,25 @@ func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID ui
 	}
 
 	return data, nil
+}
+
+// 验证订单id
+func (scoreCli) verifyOrderID(orderID string, scoreTypeID uint32, domain string) error {
+	ss := strings.SplitN(orderID, "_", 5)
+	if len(ss) != 5 {
+		return errors.New("orderID invalid")
+	}
+
+	if ss[3] != cast.ToString(scoreTypeID) {
+		return errors.New("orderID not matched scoreTypeID")
+	}
+	if ss[4] != cast.ToString(domain) {
+		return errors.New("orderID not matched domain")
+	}
+	if time.Now().Unix() > int64(conf.Conf.VerifyOrderIDCreateLessThan)*86400+cast.ToInt64(ss[2])/1000 {
+		return errors.New("orderID timeout")
+	}
+	return nil
 }
 
 // 检查状态
@@ -227,7 +294,7 @@ func (scoreCli) checkStatus(status model.OrderStatus) error {
 
 在订单状态key中已经包含了 uid/orderID, 而 orderID 是根据 scoreTypeID, domain 生成的, 所以无需检查这些参数
 */
-func (scoreCli) checkReentryParamsIsChanged(data *model.OrderData, op model.OpType, changeScore uint64) bool {
+func (scoreCli) checkReentryParamsIsChanged(data *model.OrderData, op model.OpType, changeScore int64) bool {
 	if !data.IsReentry {
 		return false
 	}

@@ -53,37 +53,27 @@ func Init(app core.IApp) {
 
 // 获取积分类型
 func GetScoreType(ctx context.Context, scoreTypeID uint32) (*model.ScoreType, error) {
-	all := loader.Get(ctx)
-	ret, ok := all[scoreTypeID]
-	if !ok {
-		return nil, ErrScoreTypeNotFound
-	}
-	return ret, nil
-}
-
-// 检查积分类型有效
-func CheckScoreTypeValid(ctx context.Context, scoreTypeID uint32) error {
-	err := checkScoreTypeValid(ctx, scoreTypeID)
+	st, err := getScoreType(ctx, scoreTypeID)
 	if err != nil {
-		logger.Log.Error(ctx, "CheckScoreTypeValid err",
+		logger.Log.Error(ctx, "GetScoreType err",
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.Error(err),
 		)
 	}
-	return err
+	return st, err
 }
-
-func checkScoreTypeValid(ctx context.Context, scoreTypeID uint32) error {
-	st, err := GetScoreType(ctx, scoreTypeID)
-	if err != nil {
-		return err
+func getScoreType(ctx context.Context, scoreTypeID uint32) (*model.ScoreType, error) {
+	all := loader.Get(ctx)
+	st, ok := all[scoreTypeID]
+	if !ok {
+		return nil, ErrScoreTypeNotFound
 	}
 
 	now := int64(0)
 	if st.StartTime != nil {
 		now = time.Now().Unix()
 		if now < st.StartTime.Unix() {
-			return ErrScoreTypeInvalid
+			return nil, ErrScoreTypeInvalid
 		}
 	}
 
@@ -92,8 +82,8 @@ func checkScoreTypeValid(ctx context.Context, scoreTypeID uint32) error {
 			now = time.Now().Unix()
 		}
 		if now > st.EndTime.Unix() {
-			return ErrScoreTypeInvalid
+			return nil, ErrScoreTypeInvalid
 		}
 	}
-	return nil
+	return st, nil
 }

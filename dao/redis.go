@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"time"
 
 	"github.com/spf13/cast"
 	"github.com/zly-app/component/redis"
@@ -26,7 +27,7 @@ const (
 // status 在redis写入的数据为  操作类型_操作状态_旧值_变更值_新的值
 
 const (
-	// 增加/扣除积分 KEYS=[积分数据key, 订单状态key]  ARGV=[增加/扣除积分值]
+	// 增加/扣除积分 KEYS=[积分数据key, 订单状态key]  ARGV=[增加/扣除积分值, 订单状态key有效期]
 	addScoreLua = `
 -- 获取订单状态
 local status = redis.call('GET', KEYS[2])
@@ -36,6 +37,7 @@ if status ~= false then
 end
 
 local changeScore = tonumber(ARGV[1])
+local ex = tonumber(ARGV[2])
 
 -- 增减积分
 local nowScore = redis.call('INCRBY', KEYS[1], changeScore)
@@ -59,11 +61,15 @@ else
 end
 
 -- 写入状态
-redis.call('SET', KEYS[2], status)
+if ex < 1 then
+    redis.call('SET', KEYS[2], status)
+else
+    redis.call('SET', KEYS[2], status, 'ex', ex)
+end
 return status .. '_0'
 `
 
-	// 重设积分 KEYS=[积分数据key, 订单状态key]  ARGV=[重设结果]
+	// 重设积分 KEYS=[积分数据key, 订单状态key]  ARGV=[重设结果, 订单状态key有效期]
 	resetScoreLua = `
 -- 获取订单状态
 local status = redis.call('GET', KEYS[2])
@@ -73,6 +79,7 @@ if status ~= false then
 end
 
 local changeScore = tonumber(ARGV[1])
+local ex = tonumber(ARGV[2])
 
 -- 获取之前的积分
 local oldScore = redis.call('GET', KEYS[1])
@@ -85,7 +92,11 @@ redis.call('SET', KEYS[1], changeScore)
 status = '3_1_' .. tostring(oldScore) .. '_' .. tostring(changeScore) .. '_' .. tostring(changeScore)
 
 -- 写入状态
-redis.call('SET', KEYS[2], status)
+if ex < 1 then
+    redis.call('SET', KEYS[2], status)
+else
+    redis.call('SET', KEYS[2], status, 'ex', ex)
+end
 return status .. '_0'
 `
 )
@@ -116,13 +127,13 @@ func genGenOrderSeqNoKey(scoreTypeID uint32, scoreTypeIdShard int32) string {
 }
 
 // 获取积分
-func GetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string) (uint64, error) {
+func GetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string) (int64, error) {
 	key := genScoreDataKey(scoreTypeID, domain, uid)
 	v, err := client.ScoreRedisClient.Get(ctx, key).Result()
 	if err == redis.Nil {
 		return 0, nil
 	}
-	return cast.ToUint64(v), err
+	return cast.ToInt64(v), err
 }
 
 // 生成订单序列号
@@ -133,16 +144,16 @@ func GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string) (stri
 	if err != nil {
 		return "", err
 	}
-	const orderSeqNoFormat = "%d_%d_%s_%d"
-	return fmt.Sprintf(orderSeqNoFormat, ret, scoreTypeID, domain, shard), nil
+	const orderSeqNoFormat = "%d_%d_%d_%d_%s"
+	return fmt.Sprintf(orderSeqNoFormat, ret, shard, time.Now().UnixNano()/1e6, scoreTypeID, domain), nil
 }
 
 // 增加/扣除积分
-func AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, score uint64) (*model.OrderData, model.OrderStatus, error) {
+func AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, score int64, statusExpireSec int64) (*model.OrderData, model.OrderStatus, error) {
 	scoreDataKey := genScoreDataKey(scoreTypeID, domain, uid)
 	scoreStatusKey := genOrderStatusKey(uid, orderID)
 
-	statusResult, err := client.ScoreRedisClient.Eval(ctx, addScoreLua, []string{scoreDataKey, scoreStatusKey}, score).Result()
+	statusResult, err := client.ScoreRedisClient.Eval(ctx, addScoreLua, []string{scoreDataKey, scoreStatusKey}, score, statusExpireSec).Result()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -151,11 +162,11 @@ func AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain st
 }
 
 // 重设积分
-func ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, resetScore uint64) (*model.OrderData, model.OrderStatus, error) {
+func ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, resetScore int64, statusExpireSec int64) (*model.OrderData, model.OrderStatus, error) {
 	scoreDataKey := genScoreDataKey(scoreTypeID, domain, uid)
 	scoreStatusKey := genOrderStatusKey(uid, orderID)
 
-	statusResult, err := client.ScoreRedisClient.Eval(ctx, resetScoreLua, []string{scoreDataKey, scoreStatusKey}, resetScore).Result()
+	statusResult, err := client.ScoreRedisClient.Eval(ctx, resetScoreLua, []string{scoreDataKey, scoreStatusKey}, resetScore, statusExpireSec).Result()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -171,9 +182,9 @@ func parseStatus(statusValue string) (*model.OrderData, model.OrderStatus, error
 
 	ret := &model.OrderData{
 		OpType:      model.OpType(cast.ToInt8(ss[0])),
-		OldScore:    cast.ToUint64(ss[2]),
-		ChangeScore: cast.ToUint64(ss[3]),
-		ResultScore: cast.ToUint64(ss[4]),
+		OldScore:    cast.ToInt64(ss[2]),
+		ChangeScore: cast.ToInt64(ss[3]),
+		ResultScore: cast.ToInt64(ss[4]),
 		IsReentry:   ss[5] == "1",
 	}
 	status := model.OrderStatus(cast.ToInt8(ss[1]))

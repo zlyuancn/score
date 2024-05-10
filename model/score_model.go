@@ -16,8 +16,8 @@ type ScoreType struct {
 // 订单数据
 type OrderData struct {
 	OpType      OpType // 操作类型
-	OldScore    uint64 // 旧值
-	ChangeScore uint64 // 变更值
-	ResultScore uint64 // 新值
+	OldScore    int64  // 旧值
+	ChangeScore int64  // 变更值
+	ResultScore int64  // 新值
 	IsReentry   bool   // 是否重入
 }
