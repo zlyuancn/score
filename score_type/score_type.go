@@ -35,15 +35,20 @@ func Init(app core.IApp) {
 		ret := make(map[uint32]*model.ScoreType, len(data))
 		for _, d := range data {
 			v := &model.ScoreType{
-				ID:                   d.ID,
-				ScoreName:            d.ScoreName,
-				OrderStatusExpireDay: d.OrderStatusExpireDay,
+				ID:                        d.ID,
+				ScoreName:                 d.ScoreName,
+				OrderStatusExpireDay:      d.OrderStatusExpireDay,
+				VerifyOrderCreateLessThan: d.VerifyOrderCreateLessThan,
 			}
 			if d.StartTime.Valid {
 				v.StartTime = &d.StartTime.Time
 			}
 			if d.EndTime.Valid {
 				v.EndTime = &d.EndTime.Time
+			}
+
+			if v.OrderStatusExpireDay > 0 && v.VerifyOrderCreateLessThan > v.OrderStatusExpireDay {
+				v.VerifyOrderCreateLessThan = v.OrderStatusExpireDay
 			}
 			ret[d.ID] = v
 		}

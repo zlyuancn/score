@@ -87,7 +87,7 @@ func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint
 	}
 
 	// 检查订单id
-	err = s.verifyOrderID(orderID, scoreTypeID, domain, uid)
+	err = s.verifyOrderID(orderID, scoreTypeID, domain, uid, int64(st.VerifyOrderCreateLessThan))
 	if err != nil {
 		logger.Log.Error(ctx, "AddScore verifyOrderID err",
 			zap.String("orderID", orderID),
@@ -188,7 +188,7 @@ func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID ui
 	}
 
 	// 检查订单id
-	err = s.verifyOrderID(orderID, scoreTypeID, domain, uid)
+	err = s.verifyOrderID(orderID, scoreTypeID, domain, uid, int64(st.VerifyOrderCreateLessThan))
 	if err != nil {
 		logger.Log.Error(ctx, "ResetScore verifyOrderID err",
 			zap.String("orderID", orderID),
@@ -263,7 +263,7 @@ func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID ui
 }
 
 // 验证订单id
-func (scoreCli) verifyOrderID(orderID string, scoreTypeID uint32, domain string, uid string) error {
+func (scoreCli) verifyOrderID(orderID string, scoreTypeID uint32, domain string, uid string, verifyOrderIDCreateLessThan int64) error {
 	ss := strings.SplitN(orderID, "_", 6)
 	if len(ss) != 6 {
 		return errors.New("orderID invalid")
@@ -281,7 +281,7 @@ func (scoreCli) verifyOrderID(orderID string, scoreTypeID uint32, domain string,
 		return errors.New("orderID not matched domain")
 	}
 	timestamp, _ := strconv.ParseInt(ss[2], 32, 64)
-	if time.Now().Unix() > int64(conf.Conf.VerifyOrderIDCreateLessThan)*86400+timestamp/1000 {
+	if time.Now().Unix() > int64(verifyOrderIDCreateLessThan)*86400+timestamp/1000 {
 		return errors.New("orderID timeout")
 	}
 	return nil

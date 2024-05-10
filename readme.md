@@ -109,7 +109,6 @@ score:
   OrderStatusKeyFormat: "{<uid>}:<order_id>:score_os" # 订单状态key格式化字符串
   GenOrderSeqNoKeyFormat: "<score_type_id>:<score_type_id_shard>:score_sn" # 订单号生成器key格式化字符串
   GenOrderSeqNoKeyShardNum: 1000 # 生成订单序列号key的分片数
-  VerifyOrderIDCreateLessThan: 7 # 操作时验证订单id创建时间小于多少天
 
   ScoreTypeSqlxName: "score" # 积分类型sqlx组件名
   ReloadScoreTypeIntervalSec: 60 # 重新加载积分类型间隔秒数
