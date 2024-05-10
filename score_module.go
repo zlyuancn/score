@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/crc32"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,18 +46,19 @@ func (scoreCli) GetScore(ctx context.Context, scoreTypeID uint32, domain string,
 }
 
 // 生成订单号
-func (scoreCli) GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string) (string, error) {
+func (scoreCli) GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string, uid string) (string, error) {
 	st, err := score_type.GetScoreType(ctx, scoreTypeID)
 	if err != nil {
 		return "", err
 	}
 
-	seqNo, err := dao.GenOrderSeqNo(ctx, scoreTypeID, domain)
+	seqNo, err := dao.GenOrderSeqNo(ctx, scoreTypeID, domain, uid)
 	if err != nil {
 		logger.Log.Error(ctx, "GenOrderSeqNo dao.GenOrderSeqNo err",
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.String("scoreName", st.ScoreName),
 			zap.String("domain", domain),
+			zap.String("uid", uid),
 			zap.Error(err),
 		)
 		return "", err
@@ -84,7 +87,7 @@ func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint
 	}
 
 	// 检查订单id
-	err = s.verifyOrderID(orderID, scoreTypeID, domain)
+	err = s.verifyOrderID(orderID, scoreTypeID, domain, uid)
 	if err != nil {
 		logger.Log.Error(ctx, "AddScore verifyOrderID err",
 			zap.String("orderID", orderID),
@@ -185,7 +188,7 @@ func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID ui
 	}
 
 	// 检查订单id
-	err = s.verifyOrderID(orderID, scoreTypeID, domain)
+	err = s.verifyOrderID(orderID, scoreTypeID, domain, uid)
 	if err != nil {
 		logger.Log.Error(ctx, "ResetScore verifyOrderID err",
 			zap.String("orderID", orderID),
@@ -260,19 +263,25 @@ func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID ui
 }
 
 // 验证订单id
-func (scoreCli) verifyOrderID(orderID string, scoreTypeID uint32, domain string) error {
-	ss := strings.SplitN(orderID, "_", 5)
-	if len(ss) != 5 {
+func (scoreCli) verifyOrderID(orderID string, scoreTypeID uint32, domain string, uid string) error {
+	ss := strings.SplitN(orderID, "_", 6)
+	if len(ss) != 6 {
 		return errors.New("orderID invalid")
 	}
 
-	if ss[3] != cast.ToString(scoreTypeID) {
+	uidHash := crc32.ChecksumIEEE([]byte(uid))
+	uidHashDoubleHex := strconv.FormatInt(int64(uidHash), 32)
+	if ss[1] != cast.ToString(uidHashDoubleHex) {
+		return errors.New("orderID not matched uid")
+	}
+	if ss[4] != cast.ToString(scoreTypeID) {
 		return errors.New("orderID not matched scoreTypeID")
 	}
-	if ss[4] != cast.ToString(domain) {
+	if ss[5] != cast.ToString(domain) {
 		return errors.New("orderID not matched domain")
 	}
-	if time.Now().Unix() > int64(conf.Conf.VerifyOrderIDCreateLessThan)*86400+cast.ToInt64(ss[2])/1000 {
+	timestamp, _ := strconv.ParseInt(ss[2], 32, 64)
+	if time.Now().Unix() > int64(conf.Conf.VerifyOrderIDCreateLessThan)*86400+timestamp/1000 {
 		return errors.New("orderID timeout")
 	}
 	return nil

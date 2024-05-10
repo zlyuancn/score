@@ -140,7 +140,7 @@ const (
 )
 
 // 生成订单
-orderID, err := score.Score.GenOrderSeqNo(ctx, scoreTypeID, domain)
+orderID, err := score.Score.GenOrderSeqNo(ctx, scoreTypeID, domain, uid)
 
 // 增加/扣除score
 addStatus, err := score.Score.AddScore(ctx, orderID, scoreTypeID, domain, uid, 100, "add score")
@@ -166,11 +166,11 @@ resetStatus, err := score.Score.ResetScore(ctx, orderID, scoreTypeID, domain, ui
 
 ## 订单号
 
-对用户的积分写操作都需要一个订单号来承载这个操作, 订单号是一个全局不重复的字符串, 其生成方式为使用一个key(`<积分类型id>:score_sn`)调用`incr`命令加1, 订单号为`<incr结果值>_<时间戳>_<积分类型id>_<域>`, 由于将`积分类型id`也写入到了订单号中, 保证了全局不会重复.
+对用户的积分写操作都需要一个订单号来承载这个操作, 订单号是一个全局不重复的字符串, 其生成方式为使用一个key(`<积分类型id>:score_sn`)调用`incr`命令加1, 订单号为`<incr结果值>_<crc32(uid)>_<时间戳>_<积分类型id>_<域>`, 由于将`积分类型id`也写入到了订单号中, 保证了全局不会重复.
 
 当然这样就造成了热key, 所以需要对这个key进行分片, 比如分1000片, 其key为`<积分类型id>_<分片号>:score_sn`. 这里对分片的选择没有要求, 可以直接随机或者轮询.
 
-而由于加了分片key, 不同分片`incr`后的值会有重复, 所以订单号需要带上分片号, 如`<incr结果值>_<分片号>_<时间戳>_<积分类型id>_<域>`. 
+而由于加了分片key, 不同分片`incr`后的值会有重复, 所以订单号需要带上分片号, 如`<incr结果值>_<crc32(uid)>_<时间戳>_<分片号>_<积分类型id>_<域>`. 
 
 ## 流水记录
 

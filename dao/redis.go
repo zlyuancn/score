@@ -3,7 +3,9 @@ package dao
 import (
 	"context"
 	"fmt"
+	"hash/crc32"
 	"math/rand"
+	"strconv"
 	"strings"
 	"time"
 
@@ -137,15 +139,20 @@ func GetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string
 }
 
 // 生成订单序列号
-func GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string) (string, error) {
+func GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string, uid string) (string, error) {
 	shard := rand.Int31n(conf.Conf.GenOrderSeqNoKeyShardNum)
 	key := genGenOrderSeqNoKey(scoreTypeID, shard)
-	ret, err := client.ScoreRedisClient.IncrBy(ctx, key, 1).Result()
+	v, err := client.ScoreRedisClient.IncrBy(ctx, key, 1).Result()
 	if err != nil {
 		return "", err
 	}
-	const orderSeqNoFormat = "%d_%d_%d_%d_%s"
-	return fmt.Sprintf(orderSeqNoFormat, ret, shard, time.Now().UnixNano()/1e6, scoreTypeID, domain), nil
+	const orderSeqNoFormat = "%s_%s_%s_%d_%d_%s"
+	uidHash := crc32.ChecksumIEEE([]byte(uid))
+	uidHashDoubleHex := strconv.FormatInt(int64(uidHash), 32)
+
+	vDoubleHex := strconv.FormatInt(v, 32)
+	timeDoubleHex := strconv.FormatInt(time.Now().UnixNano()/1e6, 32)
+	return fmt.Sprintf(orderSeqNoFormat, vDoubleHex, uidHashDoubleHex, timeDoubleHex, shard, scoreTypeID, domain), nil
 }
 
 // 增加/扣除积分
