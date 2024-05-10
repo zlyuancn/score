@@ -3,6 +3,7 @@ package score
 import (
 	"errors"
 
+	"github.com/zlyuancn/score/dao"
 	"github.com/zlyuancn/score/score_type"
 )
 
@@ -20,6 +21,6 @@ var (
 var (
 	// 余额不足
 	ErrInsufficientBalance = errors.New("Insufficient Balance")
-	// 重入参数发生变化
-	ErrReentryParamsIsChanged = errors.New("reentry params is changed")
+	// 订单不存在
+	ErrOrderNotFound = dao.ErrOrderNotFound
 )

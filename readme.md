@@ -38,6 +38,7 @@ score 是一个积分系统, 可用于会员积分/系统内货币等.
 - [x] 增加积分
 - [x] 扣除积分
 - [x] 重置积分
+- [x] 获取订单状态
 - [ ] 同用户不同积分类型兑换
 - [ ] 不同用户同积分类型转账
 - [ ] 自定义订单id (用于支持特色业务, 比如领取积分防重发)
@@ -142,11 +143,13 @@ const (
 orderID, err := score.Score.GenOrderSeqNo(ctx, scoreTypeID, domain, uid)
 
 // 增加/扣除score
-addStatus, err := score.Score.AddScore(ctx, orderID, scoreTypeID, domain, uid, 100, "add score")
+addOrderData, err := score.Score.AddScore(ctx, orderID, scoreTypeID, domain, uid, 100, "add score")
 // 获取score
 score, err := score.Score.GetScore(ctx, scoreTypeID, domain, uid)
 // 重设score
-resetStatus, err := score.Score.ResetScore(ctx, orderID, scoreTypeID, domain, uid, 66, "reset score")
+resetOrderData, err := score.Score.ResetScore(ctx, orderID, scoreTypeID, domain, uid, 66, "reset score")
+// 获取订单状态
+orderData, orderStatus, err := score.Score.GenOrderSeqNo(ctx, orderID, uid)
 ```
 
 ---

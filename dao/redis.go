@@ -2,6 +2,7 @@ package dao
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"math/rand"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spf13/cast"
+
 	"github.com/zly-app/component/redis"
 
 	"github.com/zlyuancn/score/client"
@@ -103,6 +105,9 @@ return status .. '_0'
 `
 )
 
+// 订单不存在
+var ErrOrderNotFound = errors.New("order not found")
+
 // 生成积分数据key
 func genScoreDataKey(scoreTypeID uint32, domain string, uid string) string {
 	text := conf.Conf.ScoreDataKeyFormat
@@ -158,9 +163,9 @@ func GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string, uid s
 // 增加/扣除积分
 func AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, score int64, statusExpireSec int64) (*model.OrderData, model.OrderStatus, error) {
 	scoreDataKey := genScoreDataKey(scoreTypeID, domain, uid)
-	scoreStatusKey := genOrderStatusKey(uid, orderID)
+	orderStatusKey := genOrderStatusKey(uid, orderID)
 
-	statusResult, err := client.ScoreRedisClient.Eval(ctx, addScoreLua, []string{scoreDataKey, scoreStatusKey}, score, statusExpireSec).Result()
+	statusResult, err := client.ScoreRedisClient.Eval(ctx, addScoreLua, []string{scoreDataKey, orderStatusKey}, score, statusExpireSec).Result()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -171,14 +176,27 @@ func AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain st
 // 重设积分
 func ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, resetScore int64, statusExpireSec int64) (*model.OrderData, model.OrderStatus, error) {
 	scoreDataKey := genScoreDataKey(scoreTypeID, domain, uid)
-	scoreStatusKey := genOrderStatusKey(uid, orderID)
+	orderStatusKey := genOrderStatusKey(uid, orderID)
 
-	statusResult, err := client.ScoreRedisClient.Eval(ctx, resetScoreLua, []string{scoreDataKey, scoreStatusKey}, resetScore, statusExpireSec).Result()
+	statusResult, err := client.ScoreRedisClient.Eval(ctx, resetScoreLua, []string{scoreDataKey, orderStatusKey}, resetScore, statusExpireSec).Result()
 	if err != nil {
 		return nil, 0, err
 	}
 
 	return parseStatus(cast.ToString(statusResult))
+}
+
+// 获取订单状态
+func GetOrderStatus(ctx context.Context, orderID string, uid string) (*model.OrderData, model.OrderStatus, error) {
+	orderStatusKey := genOrderStatusKey(uid, orderID)
+	statusResult, err := client.ScoreRedisClient.Get(ctx, orderStatusKey).Result()
+	if err == redis.Nil {
+		return nil, 0, ErrOrderNotFound
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	return parseStatus(statusResult + "_0")
 }
 
 func parseStatus(statusValue string) (*model.OrderData, model.OrderStatus, error) {

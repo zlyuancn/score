@@ -67,7 +67,7 @@ func (scoreCli) GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain st
 }
 
 // 增加/扣除积分
-func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, score int64, remark string) (*model.OrderData, error) {
+func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, score int64, remark string) (*OrderData, error) {
 	if score == 0 {
 		logger.Log.Error(ctx, "AddScore err",
 			zap.String("orderID", orderID),
@@ -136,6 +136,22 @@ func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint
 		}
 	}
 
+	// 检查重入时参数发生了变化
+	if score > 0 {
+		err = s.checkReentryParamsIsChanged(data, model.OpType_Add, score)
+	} else {
+		err = s.checkReentryParamsIsChanged(data, model.OpType_Deduct, -score)
+	}
+	if err != nil {
+		logger.Log.Error(ctx, "AddScore checkReentryParamsIsChanged err",
+			zap.String("scoreName", st.ScoreName),
+			zap.Int64("score", score),
+			zap.Any("flow", flow),
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
 	// 检查状态
 	err = s.checkStatus(status)
 	if err != nil {
@@ -147,28 +163,11 @@ func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint
 		return nil, err
 	}
 
-	// 检查重入时参数发生了变化
-	op := model.OpType_Add
-	changeScore := score
-	if score < 0 {
-		op = model.OpType_Deduct
-		changeScore = -score
-	}
-	if s.checkReentryParamsIsChanged(data, op, changeScore) {
-		logger.Log.Error(ctx, "AddScore checkReentryParamsIsChanged err",
-			zap.String("scoreName", st.ScoreName),
-			zap.Int64("score", score),
-			zap.Any("flow", flow),
-			zap.Error(ErrReentryParamsIsChanged),
-		)
-		return nil, ErrReentryParamsIsChanged
-	}
-
 	return data, nil
 }
 
 // 重设积分
-func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, score int64, remark string) (*model.OrderData, error) {
+func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, score int64, remark string) (*OrderData, error) {
 	if score < 0 {
 		logger.Log.Error(ctx, "ResetScore err",
 			zap.String("orderID", orderID),
@@ -237,6 +236,17 @@ func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID ui
 		}
 	}
 
+	// 检查重入时参数发生了变化
+	err = s.checkReentryParamsIsChanged(data, model.OpType_Reset, score)
+	if err != nil {
+		logger.Log.Error(ctx, "ResetScore checkReentryParamsIsChanged err",
+			zap.String("scoreName", st.ScoreName),
+			zap.Any("flow", flow),
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
 	// 检查状态
 	err = s.checkStatus(status)
 	if err != nil {
@@ -249,17 +259,21 @@ func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID ui
 		return nil, err
 	}
 
-	// 检查重入时参数发生了变化
-	if s.checkReentryParamsIsChanged(data, model.OpType_Reset, score) {
-		logger.Log.Error(ctx, "ResetScore checkReentryParamsIsChanged err",
-			zap.String("scoreName", st.ScoreName),
-			zap.Any("flow", flow),
-			zap.Error(ErrReentryParamsIsChanged),
-		)
-		return nil, ErrReentryParamsIsChanged
-	}
-
 	return data, nil
+}
+
+// 获取订单状态
+func (s scoreCli) GetOrderStatus(ctx context.Context, orderID string, uid string) (*OrderData, OrderStatus, error) {
+	data, status, err := dao.GetOrderStatus(ctx, orderID, uid)
+	if err != nil {
+		logger.Log.Error(ctx, "GetOrderStatus err",
+			zap.String("orderID", orderID),
+			zap.String("uid", uid),
+			zap.Error(err),
+		)
+		return nil, 0, err
+	}
+	return data, status, err
 }
 
 // 验证订单id
@@ -303,16 +317,16 @@ func (scoreCli) checkStatus(status model.OrderStatus) error {
 
 在订单状态key中已经包含了 uid/orderID, 而 orderID 是根据 scoreTypeID, domain 生成的, 所以无需检查这些参数
 */
-func (scoreCli) checkReentryParamsIsChanged(data *model.OrderData, op model.OpType, changeScore int64) bool {
+func (scoreCli) checkReentryParamsIsChanged(data *model.OrderData, op model.OpType, changeScore int64) error {
 	if !data.IsReentry {
-		return false
+		return nil
 	}
 
 	if data.OpType != op {
-		return true
+		return errors.New("reentry opType is changed")
 	}
 	if data.ChangeScore != changeScore {
-		return true
+		return errors.New("reentry changeScore is changed")
 	}
-	return false
+	return nil
 }

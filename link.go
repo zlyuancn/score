@@ -23,5 +23,5 @@ const (
 
 type (
 	ScoreType       = model.ScoreType
-	OrderStatusData = model.OrderData
+	OrderData = model.OrderData
 )
