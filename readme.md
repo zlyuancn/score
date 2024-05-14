@@ -143,14 +143,16 @@ const (
 // 生成订单
 orderID, err := score.Score.GenOrderSeqNo(ctx, scoreTypeID, domain, uid)
 
-// 增加/扣除score
-addOrderData, err := score.Score.AddScore(ctx, orderID, scoreTypeID, domain, uid, 100, "add score")
+// 增加score
+addOrderData, err := score.Score.AddScore(ctx, scoreTypeID, domain, uid, orderID, 100, "add score")
+// 扣除score
+deductOrderData, err := score.Score.DeductScore(ctx, scoreTypeID, domain, uid, orderID, -30, "deduct score")
 // 获取score
 score, err := score.Score.GetScore(ctx, scoreTypeID, domain, uid)
 // 重设score
-resetOrderData, err := score.Score.ResetScore(ctx, orderID, scoreTypeID, domain, uid, 66, "reset score")
+resetOrderData, err := score.Score.ResetScore(ctx, scoreTypeID, domain, uid, orderID, 66, "reset score")
 // 获取订单状态
-orderData, orderStatus, err := score.Score.GenOrderSeqNo(ctx, orderID, uid)
+orderData, orderStatus, err := score.Score.GenOrderSeqNo(ctx, uid, orderID)
 ```
 
 ---

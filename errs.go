@@ -12,10 +12,8 @@ var (
 	ErrScoreTypeNotFound = score_type.ErrScoreTypeNotFound
 	// 积分类型未生效
 	ErrScoreTypeInvalid = score_type.ErrScoreTypeInvalid
-	// 增加/扣除积分为0
-	ErrChangeScoreValueIsZero = errors.New("change score value is zero")
-	// 设置积分值小于0
-	ErrSetScoreValueIsLessThanZero = errors.New("set score value is less than zero")
+	// 变更积分值小于0
+	ErrChangeScoreValueIsLessThanZero = errors.New("change score value is less than zero")
 )
 
 var (

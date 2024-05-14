@@ -66,42 +66,15 @@ func (scoreCli) GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain st
 	return seqNo, nil
 }
 
-// 增加/扣除积分
-func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, score int64, remark string) (*OrderData, error) {
-	if score == 0 {
-		logger.Log.Error(ctx, "AddScore err",
-			zap.String("orderID", orderID),
-			zap.Uint32("scoreTypeID", scoreTypeID),
-			zap.String("domain", domain),
-			zap.String("uid", uid),
-			zap.Int64("score", score),
-			zap.Error(ErrChangeScoreValueIsZero),
-		)
-		return nil, ErrChangeScoreValueIsZero
-	}
-
-	// 检查积分类型
-	st, err := score_type.GetScoreType(ctx, scoreTypeID)
+// 增加积分
+func (s scoreCli) AddScore(ctx context.Context, scoreTypeID uint32, domain string, uid string, orderID string, score int64, remark string) (*OrderData, error) {
+	const api = "AddScore"
+	st, err := s.beforeScoreOp(ctx, api, scoreTypeID, domain, uid, orderID, score)
 	if err != nil {
 		return nil, err
 	}
 
-	// 检查订单id
-	err = s.verifyOrderID(orderID, scoreTypeID, domain, uid, int64(st.VerifyOrderCreateLessThan))
-	if err != nil {
-		logger.Log.Error(ctx, "AddScore verifyOrderID err",
-			zap.String("orderID", orderID),
-			zap.Uint32("scoreTypeID", scoreTypeID),
-			zap.String("scoreName", st.ScoreName),
-			zap.String("domain", domain),
-			zap.String("uid", uid),
-			zap.Int64("score", score),
-			zap.Error(err),
-		)
-		return nil, err
-	}
-
-	// 增减积分
+	// 增加积分
 	data, status, err := dao.AddScore(ctx, orderID, scoreTypeID, domain, uid, score, int64(st.OrderStatusExpireDay)*86400)
 	if err != nil {
 		logger.Log.Error(ctx, "AddScore dao.AddScore err",
@@ -116,50 +89,39 @@ func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint
 		return nil, err
 	}
 
-	// 写入流水
-	flow := &dao.ScoreFlowModel{
-		OrderID:     orderID,
-		ScoreTypeID: scoreTypeID,
-		Domain:      domain,
-		OpType:      uint8(data.OpType),
-		OpStatus:    uint8(status),
-		OldScore:    uint64(data.OldScore),
-		ChangeScore: uint64(data.ChangeScore),
-		ResultScore: uint64(data.ResultScore),
-		Uid:         uid,
-		Remark:      remark,
-	}
-	if conf.Conf.WriteScoreFlow {
-		err = dao.WriteScoreFlow(ctx, uid, flow)
-		if err != nil {
-			return nil, err
-		}
+	err = s.afterScoreOp(ctx, api, model.OpType_Add, scoreTypeID, domain, uid, orderID, score, remark, st, data, status)
+	if err != nil {
+		return nil, err
 	}
 
-	// 检查重入时参数发生了变化
-	if score > 0 {
-		err = s.checkReentryParamsIsChanged(data, model.OpType_Add, score)
-	} else {
-		err = s.checkReentryParamsIsChanged(data, model.OpType_Deduct, -score)
-	}
+	return data, nil
+}
+
+// 扣除积分
+func (s scoreCli) DeductScore(ctx context.Context, scoreTypeID uint32, domain string, uid string, orderID string, score int64, remark string) (*OrderData, error) {
+	const api = "DeductScore"
+	st, err := s.beforeScoreOp(ctx, api, scoreTypeID, domain, uid, orderID, score)
 	if err != nil {
-		logger.Log.Error(ctx, "AddScore checkReentryParamsIsChanged err",
+		return nil, err
+	}
+
+	// 扣除积分
+	data, status, err := dao.AddScore(ctx, orderID, scoreTypeID, domain, uid, -score, int64(st.OrderStatusExpireDay)*86400)
+	if err != nil {
+		logger.Log.Error(ctx, "DeductScore dao.AddScore err",
+			zap.String("orderID", orderID),
+			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.String("scoreName", st.ScoreName),
+			zap.String("domain", domain),
+			zap.String("uid", uid),
 			zap.Int64("score", score),
-			zap.Any("flow", flow),
 			zap.Error(err),
 		)
 		return nil, err
 	}
 
-	// 检查状态
-	err = s.checkStatus(status)
+	err = s.afterScoreOp(ctx, api, model.OpType_Deduct, scoreTypeID, domain, uid, orderID, score, remark, st, data, status)
 	if err != nil {
-		logger.Log.Error(ctx, "AddScore checkStatus err",
-			zap.String("scoreName", st.ScoreName),
-			zap.Any("flow", flow),
-			zap.Error(err),
-		)
 		return nil, err
 	}
 
@@ -167,37 +129,10 @@ func (s scoreCli) AddScore(ctx context.Context, orderID string, scoreTypeID uint
 }
 
 // 重设积分
-func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, score int64, remark string) (*OrderData, error) {
-	if score < 0 {
-		logger.Log.Error(ctx, "ResetScore err",
-			zap.String("orderID", orderID),
-			zap.Uint32("scoreTypeID", scoreTypeID),
-			zap.String("domain", domain),
-			zap.String("uid", uid),
-			zap.Int64("score", score),
-			zap.Error(ErrSetScoreValueIsLessThanZero),
-		)
-		return nil, ErrSetScoreValueIsLessThanZero
-	}
-
-	// 检查积分类型
-	st, err := score_type.GetScoreType(ctx, scoreTypeID)
+func (s scoreCli) ResetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string, orderID string, score int64, remark string) (*OrderData, error) {
+	const api = "ResetScore"
+	st, err := s.beforeScoreOp(ctx, api, scoreTypeID, domain, uid, orderID, score)
 	if err != nil {
-		return nil, err
-	}
-
-	// 检查订单id
-	err = s.verifyOrderID(orderID, scoreTypeID, domain, uid, int64(st.VerifyOrderCreateLessThan))
-	if err != nil {
-		logger.Log.Error(ctx, "ResetScore verifyOrderID err",
-			zap.String("orderID", orderID),
-			zap.Uint32("scoreTypeID", scoreTypeID),
-			zap.String("scoreName", st.ScoreName),
-			zap.String("domain", domain),
-			zap.String("uid", uid),
-			zap.Int64("score", score),
-			zap.Error(err),
-		)
 		return nil, err
 	}
 
@@ -216,46 +151,8 @@ func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID ui
 		return nil, err
 	}
 
-	// 写入流水
-	flow := &dao.ScoreFlowModel{
-		OrderID:     orderID,
-		ScoreTypeID: scoreTypeID,
-		Domain:      domain,
-		OpType:      uint8(data.OpType),
-		OpStatus:    uint8(status),
-		OldScore:    uint64(data.OldScore),
-		ChangeScore: uint64(data.ChangeScore),
-		ResultScore: uint64(data.ResultScore),
-		Uid:         uid,
-		Remark:      remark,
-	}
-	if conf.Conf.WriteScoreFlow {
-		err = dao.WriteScoreFlow(ctx, uid, flow)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// 检查重入时参数发生了变化
-	err = s.checkReentryParamsIsChanged(data, model.OpType_Reset, score)
+	err = s.afterScoreOp(ctx, api, model.OpType_Reset, scoreTypeID, domain, uid, orderID, score, remark, st, data, status)
 	if err != nil {
-		logger.Log.Error(ctx, "ResetScore checkReentryParamsIsChanged err",
-			zap.String("scoreName", st.ScoreName),
-			zap.Any("flow", flow),
-			zap.Error(err),
-		)
-		return nil, err
-	}
-
-	// 检查状态
-	err = s.checkStatus(status)
-	if err != nil {
-		logger.Log.Error(ctx, "ResetScore checkStatus err",
-			zap.String("scoreName", st.ScoreName),
-			zap.Int64("score", score),
-			zap.Any("flow", flow),
-			zap.Error(err),
-		)
 		return nil, err
 	}
 
@@ -263,7 +160,7 @@ func (s scoreCli) ResetScore(ctx context.Context, orderID string, scoreTypeID ui
 }
 
 // 获取订单状态
-func (s scoreCli) GetOrderStatus(ctx context.Context, orderID string, uid string) (*OrderData, OrderStatus, error) {
+func (s scoreCli) GetOrderStatus(ctx context.Context, uid string, orderID string) (*OrderData, OrderStatus, error) {
 	data, status, err := dao.GetOrderStatus(ctx, orderID, uid)
 	if err != nil {
 		logger.Log.Error(ctx, "GetOrderStatus err",
@@ -274,6 +171,94 @@ func (s scoreCli) GetOrderStatus(ctx context.Context, orderID string, uid string
 		return nil, 0, err
 	}
 	return data, status, err
+}
+
+func (s scoreCli) beforeScoreOp(ctx context.Context, api string, scoreTypeID uint32, domain string, uid string, orderID string, score int64) (*model.ScoreType, error) {
+	if score < 0 {
+		logger.Log.Error(ctx, api+" beforeScoreOp err",
+			zap.String("orderID", orderID),
+			zap.Uint32("scoreTypeID", scoreTypeID),
+			zap.String("domain", domain),
+			zap.String("uid", uid),
+			zap.Int64("score", score),
+			zap.Error(ErrChangeScoreValueIsLessThanZero),
+		)
+		return nil, ErrChangeScoreValueIsLessThanZero
+	}
+
+	// 检查积分类型
+	st, err := score_type.GetScoreType(ctx, scoreTypeID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 检查订单id
+	err = s.verifyOrderID(orderID, scoreTypeID, domain, uid, int64(st.VerifyOrderCreateLessThan))
+	if err != nil {
+		logger.Log.Error(ctx, api+"beforeScoreOp verifyOrderID err",
+			zap.String("orderID", orderID),
+			zap.Uint32("scoreTypeID", scoreTypeID),
+			zap.String("scoreName", st.ScoreName),
+			zap.String("domain", domain),
+			zap.String("uid", uid),
+			zap.Int64("score", score),
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	return st, nil
+}
+
+func (s scoreCli) afterScoreOp(ctx context.Context, api string, op model.OpType, scoreTypeID uint32, domain string, uid string, orderID string, score int64,
+	remark string, st *model.ScoreType, orderData *model.OrderData, orderStatus model.OrderStatus) error {
+	// 写入流水
+	flow := &dao.ScoreFlowModel{
+		OrderID:     orderID,
+		ScoreTypeID: scoreTypeID,
+		Domain:      domain,
+		OpType:      uint8(orderData.OpType),
+		OpStatus:    uint8(orderStatus),
+		OldScore:    uint64(orderData.OldScore),
+		ChangeScore: uint64(orderData.ChangeScore),
+		ResultScore: uint64(orderData.ResultScore),
+		Uid:         uid,
+		Remark:      remark,
+	}
+	if conf.Conf.WriteScoreFlow {
+		err := dao.WriteScoreFlow(ctx, uid, flow)
+		if err != nil {
+			logger.Log.Error(ctx, api+" afterScoreOp dao.WriteScoreFlow err",
+				zap.Any("flow", flow),
+				zap.Error(err),
+			)
+			return err
+		}
+	}
+
+	// 检查重入时参数发生了变化
+	err := s.checkReentryParamsIsChanged(orderData, op, score)
+	if err != nil {
+		logger.Log.Error(ctx, api+" afterScoreOp checkReentryParamsIsChanged err",
+			zap.String("scoreName", st.ScoreName),
+			zap.Any("flow", flow),
+			zap.Error(err),
+		)
+		return err
+	}
+
+	// 检查状态
+	err = s.checkStatus(orderStatus)
+	if err != nil {
+		logger.Log.Error(ctx, api+" afterScoreOp checkStatus err",
+			zap.String("scoreName", st.ScoreName),
+			zap.Int64("score", score),
+			zap.Any("flow", flow),
+			zap.Error(err),
+		)
+		return err
+	}
+	return nil
 }
 
 // 验证订单id
@@ -301,17 +286,6 @@ func (scoreCli) verifyOrderID(orderID string, scoreTypeID uint32, domain string,
 	return nil
 }
 
-// 检查状态
-func (scoreCli) checkStatus(status model.OrderStatus) error {
-	switch status {
-	case model.OrderStatus_Finish:
-		return nil
-	case model.OrderStatus_InsufficientBalance:
-		return ErrInsufficientBalance
-	}
-	return fmt.Errorf("undefined status=%d", status)
-}
-
 /*
 	检查重入参数是否发生了变化
 
@@ -329,4 +303,15 @@ func (scoreCli) checkReentryParamsIsChanged(data *model.OrderData, op model.OpTy
 		return errors.New("reentry changeScore is changed")
 	}
 	return nil
+}
+
+// 检查状态
+func (scoreCli) checkStatus(status model.OrderStatus) error {
+	switch status {
+	case model.OrderStatus_Finish:
+		return nil
+	case model.OrderStatus_InsufficientBalance:
+		return ErrInsufficientBalance
+	}
+	return fmt.Errorf("undefined status=%d", status)
 }
