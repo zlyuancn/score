@@ -212,7 +212,7 @@ func (s scoreCli) beforeScoreOp(ctx context.Context, api string, scoreTypeID uin
 
 func (s scoreCli) afterScoreOp(ctx context.Context, api string, op model.OpType, scoreTypeID uint32, domain string, uid string, orderID string, score int64,
 	remark string, st *model.ScoreType, orderData *model.OrderData, orderStatus model.OrderStatus) error {
-	// 写入流水
+	// 流水数据
 	flow := &dao.ScoreFlowModel{
 		OrderID:     orderID,
 		ScoreTypeID: scoreTypeID,
@@ -225,16 +225,6 @@ func (s scoreCli) afterScoreOp(ctx context.Context, api string, op model.OpType,
 		Uid:         uid,
 		Remark:      remark,
 	}
-	if conf.Conf.WriteScoreFlow {
-		err := dao.WriteScoreFlow(ctx, uid, flow)
-		if err != nil {
-			logger.Log.Error(ctx, api+" afterScoreOp dao.WriteScoreFlow err",
-				zap.Any("flow", flow),
-				zap.Error(err),
-			)
-			return err
-		}
-	}
 
 	// 检查重入时参数发生了变化
 	err := s.checkReentryParamsIsChanged(orderData, op, score)
@@ -245,6 +235,18 @@ func (s scoreCli) afterScoreOp(ctx context.Context, api string, op model.OpType,
 			zap.Error(err),
 		)
 		return err
+	}
+
+	// 写入流水
+	if conf.Conf.WriteScoreFlow {
+		err := dao.WriteScoreFlow(ctx, uid, flow)
+		if err != nil {
+			logger.Log.Error(ctx, api+" afterScoreOp dao.WriteScoreFlow err",
+				zap.Any("flow", flow),
+				zap.Error(err),
+			)
+			return err
+		}
 	}
 
 	// 检查状态
