@@ -47,8 +47,8 @@ func Init(app core.IApp) {
 				v.EndTime = &d.EndTime.Time
 			}
 
-			if v.OrderStatusExpireDay > 0 && v.VerifyOrderCreateLessThan > v.OrderStatusExpireDay {
-				v.VerifyOrderCreateLessThan = v.OrderStatusExpireDay
+			if v.OrderStatusExpireDay > 0 && v.OrderStatusExpireDay < v.VerifyOrderCreateLessThan {
+				v.OrderStatusExpireDay = v.VerifyOrderCreateLessThan
 			}
 			ret[d.ID] = v
 		}
