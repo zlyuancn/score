@@ -24,6 +24,6 @@ func GetAllScoreType(ctx context.Context) ([]*ScoreTypeModel, error) {
 	const cond = `select id,score_name,start_time,end_time,order_status_expire_day,verify_order_create_less_than from ` + ScoreTypeTableName
 
 	var ret []*ScoreTypeModel
-	err := client.ScoreTypeSqlxClient.Find(ctx, &ret, cond)
+	err := client.GetScoreTypeSqlxClient().Find(ctx, &ret, cond)
 	return ret, err
 }

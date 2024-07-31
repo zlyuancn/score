@@ -67,7 +67,7 @@ func WriteScoreFlow(ctx context.Context, uid string, v *ScoreFlowModel) error {
 		return err
 	}
 
-	result, err := client.ScoreFlowSqlxClient.Exec(ctx, cond, vals...)
+	result, err := client.GetScoreFlowSqlxClient().Exec(ctx, cond, vals...)
 	if err != nil {
 		logger.Log.Error(ctx, "score CreateOneModel err",
 			zap.String("cond", cond),

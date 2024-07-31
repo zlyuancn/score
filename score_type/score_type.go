@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/zly-app/utils/loopload"
-	"github.com/zly-app/zapp/core"
 	"github.com/zly-app/zapp/logger"
 	"go.uber.org/zap"
 
@@ -25,7 +24,7 @@ var (
 	ErrScoreTypeInvalid = errors.New("score type invalid")
 )
 
-func Init(app core.IApp) {
+func Init() {
 	loader = loopload.New("score_type", func(ctx context.Context) (map[uint32]*model.ScoreType, error) {
 		data, err := dao.GetAllScoreType(ctx)
 		if err != nil {

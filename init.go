@@ -7,7 +7,6 @@ import (
 	"github.com/zly-app/zapp/handler"
 	"go.uber.org/zap"
 
-	"github.com/zlyuancn/score/client"
 	"github.com/zlyuancn/score/conf"
 	"github.com/zlyuancn/score/score_type"
 )
@@ -22,11 +21,6 @@ func init() {
 		}
 		conf.Conf.Check()
 	})
-	zapp.AddHandler(zapp.AfterInitializeHandler, func(app core.IApp, handlerType handler.HandlerType) {
-		client.Init(app)
-		score_type.Init(app)
-	})
-	zapp.AddHandler(zapp.AfterExitHandler, func(app core.IApp, handlerType handler.HandlerType) {
-		client.Close()
-	})
+
+	score_type.Init()
 }

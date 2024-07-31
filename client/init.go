@@ -3,29 +3,21 @@ package client
 import (
 	"github.com/zly-app/component/redis"
 	"github.com/zly-app/component/sqlx"
-	"github.com/zly-app/zapp/core"
 
 	"github.com/zlyuancn/score/conf"
 )
 
-var (
-	redisCreator     redis.IRedisCreator
-	ScoreRedisClient redis.UniversalClient
-
-	sqlxCreator         sqlx.ISqlx
-	ScoreTypeSqlxClient sqlx.Client
-	ScoreFlowSqlxClient sqlx.Client
-)
-
-func Init(app core.IApp) {
-	redisCreator = redis.NewRedisCreator(app)
-	ScoreRedisClient = redisCreator.GetRedis(conf.Conf.ScoreRedisName)
-
-	sqlxCreator = sqlx.NewSqlx(app)
-	ScoreTypeSqlxClient = sqlxCreator.GetSqlx(conf.Conf.ScoreTypeSqlxName)
-	ScoreFlowSqlxClient = sqlxCreator.GetSqlx(conf.Conf.ScoreFlowSqlxName)
+// 获取积分 redis 客户端
+func GetScoreRedisClient() redis.UniversalClient {
+	return redis.GetClient(conf.Conf.ScoreRedisName)
 }
-func Close() {
-	redisCreator.Close()
-	sqlxCreator.Close()
+
+// 获取积分类型 sqlx 客户端
+func GetScoreTypeSqlxClient() sqlx.Client {
+	return sqlx.GetClient(conf.Conf.ScoreTypeSqlxName)
+}
+
+// 获取积分流水 sqx 客户端
+func GetScoreFlowSqlxClient() sqlx.Client {
+	return sqlx.GetClient(conf.Conf.ScoreFlowSqlxName)
 }

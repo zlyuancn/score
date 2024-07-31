@@ -136,7 +136,7 @@ func genGenOrderSeqNoKey(scoreTypeID uint32, scoreTypeIdShard int32) string {
 // 获取积分
 func GetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string) (int64, error) {
 	key := genScoreDataKey(scoreTypeID, domain, uid)
-	v, err := client.ScoreRedisClient.Get(ctx, key).Result()
+	v, err := client.GetScoreRedisClient().Get(ctx, key).Result()
 	if err == redis.Nil {
 		return 0, nil
 	}
@@ -147,7 +147,7 @@ func GetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string
 func GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string, uid string) (string, error) {
 	shard := rand.Int31n(conf.Conf.GenOrderSeqNoKeyShardNum)
 	key := genGenOrderSeqNoKey(scoreTypeID, shard)
-	v, err := client.ScoreRedisClient.IncrBy(ctx, key, 1).Result()
+	v, err := client.GetScoreRedisClient().IncrBy(ctx, key, 1).Result()
 	if err != nil {
 		return "", err
 	}
@@ -165,7 +165,7 @@ func AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain st
 	scoreDataKey := genScoreDataKey(scoreTypeID, domain, uid)
 	orderStatusKey := genOrderStatusKey(uid, orderID)
 
-	statusResult, err := client.ScoreRedisClient.Eval(ctx, addScoreLua, []string{scoreDataKey, orderStatusKey}, score, statusExpireSec).Result()
+	statusResult, err := client.GetScoreRedisClient().Eval(ctx, addScoreLua, []string{scoreDataKey, orderStatusKey}, score, statusExpireSec).Result()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -178,7 +178,7 @@ func ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain 
 	scoreDataKey := genScoreDataKey(scoreTypeID, domain, uid)
 	orderStatusKey := genOrderStatusKey(uid, orderID)
 
-	statusResult, err := client.ScoreRedisClient.Eval(ctx, resetScoreLua, []string{scoreDataKey, orderStatusKey}, resetScore, statusExpireSec).Result()
+	statusResult, err := client.GetScoreRedisClient().Eval(ctx, resetScoreLua, []string{scoreDataKey, orderStatusKey}, resetScore, statusExpireSec).Result()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -189,7 +189,7 @@ func ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain 
 // 获取订单状态
 func GetOrderStatus(ctx context.Context, orderID string, uid string) (*model.OrderData, model.OrderStatus, error) {
 	orderStatusKey := genOrderStatusKey(uid, orderID)
-	statusResult, err := client.ScoreRedisClient.Get(ctx, orderStatusKey).Result()
+	statusResult, err := client.GetScoreRedisClient().Get(ctx, orderStatusKey).Result()
 	if err == redis.Nil {
 		return nil, 0, ErrOrderNotFound
 	}
