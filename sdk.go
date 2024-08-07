@@ -26,27 +26,27 @@ type sdkCli struct {
 }
 
 func (s *sdkCli) GetScore(ctx context.Context) (int64, error) {
-	return Score.GetScore(ctx, s.scoreTypeID, s.domain, s.uid)
+	return scoreApi.GetScore(ctx, s.scoreTypeID, s.domain, s.uid)
 }
 
 func (s *sdkCli) GenOrderSeqNo(ctx context.Context) (string, error) {
-	return Score.GenOrderSeqNo(ctx, s.scoreTypeID, s.domain, s.uid)
+	return scoreApi.GenOrderSeqNo(ctx, s.scoreTypeID, s.domain, s.uid)
 }
 
 func (s *sdkCli) AddScore(ctx context.Context, orderID string, score int64, remark string) (*OrderData, error) {
-	return Score.AddScore(ctx, s.scoreTypeID, s.domain, s.uid, orderID, score, remark)
+	return scoreApi.AddScore(ctx, s.scoreTypeID, s.domain, s.uid, orderID, score, remark)
 }
 
 func (s *sdkCli) DeductScore(ctx context.Context, orderID string, score int64, remark string) (*OrderData, error) {
-	return Score.DeductScore(ctx, s.scoreTypeID, s.domain, s.uid, orderID, score, remark)
+	return scoreApi.DeductScore(ctx, s.scoreTypeID, s.domain, s.uid, orderID, score, remark)
 }
 
 func (s *sdkCli) ResetScore(ctx context.Context, orderID string, score int64, remark string) (*OrderData, error) {
-	return Score.ResetScore(ctx, s.scoreTypeID, s.domain, s.uid, orderID, score, remark)
+	return scoreApi.ResetScore(ctx, s.scoreTypeID, s.domain, s.uid, orderID, score, remark)
 }
 
 func (s *sdkCli) GetOrderStatus(ctx context.Context, orderID string) (*OrderData, OrderStatus, error) {
-	return Score.GetOrderStatus(ctx, s.uid, orderID)
+	return scoreApi.GetOrderStatus(ctx, s.uid, orderID)
 }
 
 func NewSdk(scoreTypeID uint32, domain string, uid string) SDK {

@@ -20,7 +20,7 @@ import (
 	"github.com/zlyuancn/score/score_type"
 )
 
-var Score = scoreCli{}
+var scoreApi = scoreCli{}
 
 type scoreCli struct{}
 
