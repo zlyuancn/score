@@ -9,7 +9,8 @@ const (
 	defGenOrderSeqNoKeyFormat   = "<score_type_id>:<score_type_id_shard>:score_sn"
 	defGenOrderSeqNoKeyShardNum = 1000
 
-	defScoreTypeSqlxName          = "score"
+	defScoreTypeRedisName         = "score"
+	defScoreTypeRedisKey          = "score:score_type"
 	defReloadScoreTypeIntervalSec = 60
 
 	defScoreFlowSqlxName       = "score"
@@ -24,7 +25,9 @@ var Conf = Config{
 	GenOrderSeqNoKeyFormat:   defGenOrderSeqNoKeyFormat,
 	GenOrderSeqNoKeyShardNum: defGenOrderSeqNoKeyShardNum,
 
-	ScoreTypeSqlxName:          defScoreTypeSqlxName,
+	ScoreTypeRedisName:         defScoreTypeRedisName,
+	ScoreTypeRedisKey:          defScoreTypeRedisKey,
+	ScoreTypeSqlxName:          "",
 	ReloadScoreTypeIntervalSec: defReloadScoreTypeIntervalSec,
 
 	ScoreFlowSqlxName:       defScoreFlowSqlxName,
@@ -39,7 +42,9 @@ type Config struct {
 	GenOrderSeqNoKeyFormat   string // 订单号生成器key格式化字符串
 	GenOrderSeqNoKeyShardNum int32  // 生成订单序列号key的分片数
 
-	ScoreTypeSqlxName          string // 积分类型sqlx组件名
+	ScoreTypeRedisName         string // 积分类型redis组件名
+	ScoreTypeRedisKey          string // 积分类型从redis加载的 hash map key名
+	ScoreTypeSqlxName          string // 积分类型sqlx组件名, 如果配置了 ScoreTypeRedisName 则仅从redis加载积分类型
 	ReloadScoreTypeIntervalSec int    // 重新加载积分类型间隔秒数
 
 	ScoreFlowSqlxName       string // 积分流水记录sqlx组件名
@@ -64,8 +69,11 @@ func (conf *Config) Check() {
 		conf.GenOrderSeqNoKeyShardNum = defGenOrderSeqNoKeyShardNum
 	}
 
-	if conf.ScoreTypeSqlxName == "" {
-		conf.ScoreTypeSqlxName = defScoreTypeSqlxName
+	if conf.ScoreTypeRedisName == "" && conf.ScoreTypeSqlxName == "" {
+		conf.ScoreTypeRedisName = defScoreTypeRedisName
+	}
+	if conf.ScoreTypeRedisKey == "" {
+		conf.ScoreTypeRedisKey = defScoreTypeRedisKey
 	}
 	if conf.ReloadScoreTypeIntervalSec < 1 {
 		conf.ReloadScoreTypeIntervalSec = defReloadScoreTypeIntervalSec

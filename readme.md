@@ -4,7 +4,7 @@
 - [什么是 score](#%E4%BB%80%E4%B9%88%E6%98%AF-score)
 - [前置准备](#%E5%89%8D%E7%BD%AE%E5%87%86%E5%A4%87)
     - [底层组件要求](#%E5%BA%95%E5%B1%82%E7%BB%84%E4%BB%B6%E8%A6%81%E6%B1%82)
-    - [sql文件导入](#sql%E6%96%87%E4%BB%B6%E5%AF%BC%E5%85%A5)
+    - [sql文件导入可选](#sql%E6%96%87%E4%BB%B6%E5%AF%BC%E5%85%A5%E5%8F%AF%E9%80%89)
     - [调整积分key格式化字符串](#%E8%B0%83%E6%95%B4%E7%A7%AF%E5%88%86key%E6%A0%BC%E5%BC%8F%E5%8C%96%E5%AD%97%E7%AC%A6%E4%B8%B2)
     - [注册积分类型](#%E6%B3%A8%E5%86%8C%E7%A7%AF%E5%88%86%E7%B1%BB%E5%9E%8B)
     - [修改配置文件](#%E4%BF%AE%E6%94%B9%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6)
@@ -62,13 +62,13 @@ score 是一个积分系统, 可用于会员积分/系统内货币等.
 ## 底层组件要求
 
 - redis 储存积分数据/订单状态, 也可以使用 kvrocks (兼容redis的硬盘储存nosql)
-- mysql 储存积分类型/积分流水, 可以使用 mysql/mariadb/pgsql 等
+- mysql(可选) 储存积分类型/积分流水, 可以使用 mysql/mariadb/pgsql 等
 
-## sql文件导入
+## sql文件导入(可选)
 
 1. 首先准备一个库名为 `score` 的mysql库. 这个库名可以根据sqlx组件配置的连接db库修改
-2. 创建积分类型表, 积分类型的表文件在[这里](./db_table/score_type.sql)
-3. 创建积分流水的分表(可选), 默认为2个分表, 分表索引从0开始. 一开始应该设计好分表数量, 确认好后暂不支持修改分表数量, 如果你不知道设置为多少就设为1000. 注意, 配置文件中key`ScoreFlowTableShardNums`必须与这里设置的分片数量相同.
+2. 创建积分类型表, 积分类型的表文件在[这里](./db_table/score_type.sql). 如果配置从redis加载可以不用操作这一步.
+3. 创建积分流水的分表, 默认为2个分表, 分表索引从0开始. 一开始应该设计好分表数量, 确认好后暂不支持修改分表数量, 如果你不知道设置为多少就设为1000. 注意, 配置文件中key`ScoreFlowTableShardNums`必须与这里设置的分片数量相同.
    1. 构建分表的工具为 [stf](https://github.com/zlyuancn/stt/tree/master/stf)
    2. 积分流水的分表文件在[这里](./db_table/score_flow_.sql)
    3. 在[这里](./db_table/score_flow_.out.sql)可以看到已经生成好了2个分表的sql文件, 可以直接导入.
@@ -97,7 +97,21 @@ key中的字符替换说明如下
 
 ## 注册积分类型
 
-积分类型只有注册之后才会使用, 这是为了防止多业务的积分类型冲突, 将积分类型加入到mysql的`score_type`表后大约1分钟生效(常驻内存每隔1分钟刷新以实现高性能).
+积分类型只有注册之后才会使用, 这是为了防止多业务的积分类型冲突. 注册积分类型后大约1分钟生效(常驻内存每隔1分钟刷新以实现高性能).
+
+如果配置文件key`ScoreTypeSqlxName`指定了sqlx组件名, 需要将积分类型加入到mysql的`score_type`表.
+
+如果配置文件key`ScoreTypeRedisName`指定了在redis组件名, 则需要在配置文件key`ScoreTypeRedisKey`指定的 redis hash map 中增加数据, 其 field 为积分类型(正整数), 值为以下结构
+```json
+{
+    "score_name": "积分名", // 积分名, 与代码无关, 用于告诉配置人员这个积分类型是什么业务
+    "start_time": 1723017306, // 生效时间, 秒级时间戳, 0 表示不限制
+    "end_time": 1723017306, // 失效时间, 秒级时间戳, 0 表示不限制
+    "order_status_expire_day": 30, // 订单状态保留多少天
+    "verify_order_create_less_than": 7, // 操作时验证订单id创建时间小于多少天, 不要超过积分状态储存时间, 否则可能导致在重入时由于查不到积分状态重新操作了用户积分
+    "remark": "备注"
+}
+```
 
 ## 修改配置文件
 
@@ -112,7 +126,9 @@ score:
   GenOrderSeqNoKeyFormat: "<score_type_id>:<score_type_id_shard>:score_sn" # 订单号生成器key格式化字符串
   GenOrderSeqNoKeyShardNum: 1000 # 生成订单序列号key的分片数
 
-  ScoreTypeSqlxName: "score" # 积分类型sqlx组件名
+  ScoreTypeRedisName: "score" # 积分类型redis组件名
+  ScoreTypeRedisKey: "score:score_type" # 积分类型从redis加载的 hash map key名
+  ScoreTypeSqlxName: "" # 积分类型sqlx组件名, 如果配置了 ScoreTypeRedisName 则仅从redis加载积分类型
   ReloadScoreTypeIntervalSec: 60 # 重新加载积分类型间隔秒数
 
   ScoreFlowSqlxName: "score" # 积分流水记录sqlx组件名

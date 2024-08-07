@@ -26,7 +26,32 @@ var (
 
 func Init() {
 	loader = loopload.New("score_type", func(ctx context.Context) (map[uint32]*model.ScoreType, error) {
-		data, err := dao.GetAllScoreType(ctx)
+		if conf.Conf.ScoreTypeRedisName != "" {
+			data, err := dao.GetAllScoreTypeByRedis(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			ret := make(map[uint32]*model.ScoreType, len(data))
+			for _, d := range data {
+				v := &model.ScoreType{
+					ID:                        d.ID,
+					ScoreName:                 d.ScoreName,
+					StartTime:                 d.StartTime,
+					EndTime:                   d.EndTime,
+					OrderStatusExpireDay:      d.OrderStatusExpireDay,
+					VerifyOrderCreateLessThan: d.VerifyOrderCreateLessThan,
+				}
+
+				if v.OrderStatusExpireDay > 0 && v.OrderStatusExpireDay < v.VerifyOrderCreateLessThan {
+					v.OrderStatusExpireDay = v.VerifyOrderCreateLessThan
+				}
+				ret[d.ID] = v
+			}
+			return ret, nil
+		}
+
+		data, err := dao.GetAllScoreTypeBySqlx(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -40,10 +65,10 @@ func Init() {
 				VerifyOrderCreateLessThan: d.VerifyOrderCreateLessThan,
 			}
 			if d.StartTime.Valid {
-				v.StartTime = &d.StartTime.Time
+				v.StartTime = d.StartTime.Time.Unix()
 			}
 			if d.EndTime.Valid {
-				v.EndTime = &d.EndTime.Time
+				v.EndTime = d.EndTime.Time.Unix()
 			}
 
 			if v.OrderStatusExpireDay > 0 && v.OrderStatusExpireDay < v.VerifyOrderCreateLessThan {
@@ -74,18 +99,18 @@ func getScoreType(ctx context.Context, scoreTypeID uint32) (*model.ScoreType, er
 	}
 
 	now := int64(0)
-	if st.StartTime != nil {
+	if st.StartTime > 0 {
 		now = time.Now().Unix()
-		if now < st.StartTime.Unix() {
+		if now < st.StartTime {
 			return nil, ErrScoreTypeInvalid
 		}
 	}
 
-	if st.EndTime != nil {
+	if st.EndTime > 0 {
 		if now == 0 {
 			now = time.Now().Unix()
 		}
-		if now > st.EndTime.Unix() {
+		if now > st.EndTime {
 			return nil, ErrScoreTypeInvalid
 		}
 	}

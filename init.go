@@ -14,6 +14,8 @@ import (
 func init() {
 	config.RegistryApolloNeedParseNamespace(conf.ScoreConfigKey)
 
+	score_type.Init()
+
 	zapp.AddHandler(zapp.BeforeInitializeHandler, func(app core.IApp, handlerType handler.HandlerType) {
 		err := app.GetConfig().Parse(conf.ScoreConfigKey, &conf.Conf, true)
 		if err != nil {
@@ -21,6 +23,4 @@ func init() {
 		}
 		conf.Conf.Check()
 	})
-
-	score_type.Init()
 }
