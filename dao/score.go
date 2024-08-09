@@ -147,17 +147,16 @@ func GetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string
 func GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string, uid string) (string, error) {
 	shard := rand.Int31n(conf.Conf.GenOrderSeqNoKeyShardNum)
 	key := genGenOrderSeqNoKey(scoreTypeID, shard)
-	v, err := client.GetScoreRedisClient().IncrBy(ctx, key, 1).Result()
+	no, err := client.GetScoreRedisClient().IncrBy(ctx, key, 1).Result()
 	if err != nil {
 		return "", err
 	}
-	const orderSeqNoFormat = "%s_%s_%s_%d_%d_%s"
+	const orderSeqNoFormat = "%d_%d_%d_%s_%d_%s"
 	uidHash := crc32.ChecksumIEEE([]byte(uid))
 	uidHashDoubleHex := strconv.FormatInt(int64(uidHash), 32)
 
-	vDoubleHex := strconv.FormatInt(v, 32)
-	timeDoubleHex := strconv.FormatInt(time.Now().UnixNano()/1e6, 32)
-	return fmt.Sprintf(orderSeqNoFormat, vDoubleHex, uidHashDoubleHex, timeDoubleHex, shard, scoreTypeID, domain), nil
+	t := time.Now().Unix()
+	return fmt.Sprintf(orderSeqNoFormat, t, shard, no, uidHashDoubleHex, scoreTypeID, domain), nil
 }
 
 // 增加/扣除积分

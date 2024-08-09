@@ -272,7 +272,7 @@ func (scoreCli) verifyOrderID(orderID string, scoreTypeID uint32, domain string,
 
 	uidHash := crc32.ChecksumIEEE([]byte(uid))
 	uidHashDoubleHex := strconv.FormatInt(int64(uidHash), 32)
-	if ss[1] != cast.ToString(uidHashDoubleHex) {
+	if ss[3] != cast.ToString(uidHashDoubleHex) {
 		return errors.New("orderID not matched uid")
 	}
 	if ss[4] != cast.ToString(scoreTypeID) {
@@ -281,8 +281,11 @@ func (scoreCli) verifyOrderID(orderID string, scoreTypeID uint32, domain string,
 	if ss[5] != cast.ToString(domain) {
 		return errors.New("orderID not matched domain")
 	}
-	timestamp, _ := strconv.ParseInt(ss[2], 32, 64)
-	if time.Now().Unix() > int64(verifyOrderIDCreateLessThan)*86400+timestamp/1000 {
+	timestamp, err := strconv.ParseInt(ss[0], 10, 64)
+	if err != nil {
+		return fmt.Errorf("orderID not parsed timestamp")
+	}
+	if time.Now().Unix() > int64(verifyOrderIDCreateLessThan)*86400+timestamp {
 		return errors.New("orderID timeout")
 	}
 	return nil

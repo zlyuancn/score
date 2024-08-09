@@ -4,9 +4,9 @@ const ScoreConfigKey = "score"
 
 const (
 	defScoreRedisName           = "score"
-	defScoreDataKeyFormat       = "{<uid>}:<domain>:<score_type_id>:score"
-	defOrderStatusKeyFormat     = "{<uid>}:<order_id>:score_os"
-	defGenOrderSeqNoKeyFormat   = "<score_type_id>:<score_type_id_shard>:score_sn"
+	defScoreDataKeyFormat       = "score:<score_type_id>:<domain>:{<uid>}"
+	defOrderStatusKeyFormat     = "score_os:<order_id>:{<uid>}"
+	defGenOrderSeqNoKeyFormat   = "score_sn:<score_type_id>:<score_type_id_shard>"
 	defGenOrderSeqNoKeyShardNum = 1000
 
 	defScoreTypeRedisName         = "score"

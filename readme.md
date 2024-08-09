@@ -79,9 +79,9 @@ score 是一个积分系统, 可用于会员积分/系统内货币等.
 
 | 描述         | 配置key                | 默认key格式化字符串                                | 数据类型 | 有效期       | 支持替换的字符                            |
 | ------------ | ---------------------- | -------------------------------------------------- | -------- | ------------ | ----------------------------------------- |
-| 积分数据     | ScoreDataKeyFormat     | {\<uid\>}:\<domain\>:\<score_type_id\>:score       | string   | 永久         | `<uid>`/`<domain>`/`<score_type_id>`      |
-| 订单状态     | OrderStatusKeyFormat   | {\<uid\>}:\<order_id\>:score_os                    | string   | 30天(可配置) | `<uid>`/`<order_id>`                      |
-| 订单号生成器 | GenOrderSeqNoKeyFormat | \<score_type_id\>:\<score_type_id_shard\>:score_sn | string   | 永久         | `<score_type_id>`/`<score_type_id_shard>` |
+| 积分数据     | ScoreDataKeyFormat     | score:\<score_type_id\>:\<domain\>:{\<uid\>}       | string   | 永久         | `<uid>`/`<domain>`/`<score_type_id>`      |
+| 订单状态     | OrderStatusKeyFormat   | score_os:\<order_id\>:{\<uid\>}                    | string   | 30天(可配置) | `<uid>`/`<order_id>`                      |
+| 订单号生成器 | GenOrderSeqNoKeyFormat | score_sn:\<score_type_id\>:\<score_type_id_shard\> | string   | 永久         | `<score_type_id>`/`<score_type_id_shard>` |
 
 其中订单状态key中加上`{<uid>}`的原因是在分布式redis系统中lua脚本要操作的这些key(积分数据/订单状态等)都要在同一个节点中, 而用户id的区分度较大, 能方便分散到不同节点避免单节点负载过高, 相同用户的数据放在同一个节点中对节点负载影响不大.
 
@@ -121,9 +121,9 @@ key中的字符替换说明如下
 # score配置
 score:
   ScoreRedisName: "score" # 积分数据redis组件名
-  ScoreDataKeyFormat: "{<uid>}:<domain>:<score_type_id>:score" # 积分数据key格式化字符串
-  OrderStatusKeyFormat: "{<uid>}:<order_id>:score_os" # 订单状态key格式化字符串
-  GenOrderSeqNoKeyFormat: "<score_type_id>:<score_type_id_shard>:score_sn" # 订单号生成器key格式化字符串
+  ScoreDataKeyFormat: "score:<score_type_id>:<domain>:{<uid>}" # 积分数据key格式化字符串
+  OrderStatusKeyFormat: "score_os:<order_id>:{<uid>}" # 订单状态key格式化字符串
+  GenOrderSeqNoKeyFormat: "score_sn:<score_type_id>:<score_type_id_shard>" # 订单号生成器key格式化字符串
   GenOrderSeqNoKeyShardNum: 1000 # 生成订单序列号key的分片数
 
   ScoreTypeRedisName: "score" # 积分类型redis组件名
@@ -193,11 +193,11 @@ orderData, orderStatus, err := sdk.GetOrderStatus(ctx, orderID)
 
 ## 订单号
 
-对用户的积分写操作都需要一个订单号来承载这个操作, 订单号是一个全局不重复的字符串, 其生成方式为使用一个key(`<积分类型id>:score_sn`)调用`incr`命令加1, 订单号为`<incr结果值>_<crc32(uid)>_<时间戳>_<积分类型id>_<域>`, 由于将`积分类型id`也写入到了订单号中, 保证了全局不会重复.
+对用户的积分写操作都需要一个订单号来承载这个操作, 订单号是一个全局不重复的字符串, 其生成方式为使用一个key(`score_sn:<积分类型id>`)调用`incr`命令加1, 订单号为`<时间戳>_<incr结果值>_<crc32(uid)>_<积分类型id>_<域>`, 由于将`积分类型id`也写入到了订单号中, 保证了全局不会重复.
 
-当然这样就造成了热key, 所以需要对这个key进行分片, 比如分1000片, 其key为`<积分类型id>_<分片号>:score_sn`. 这里对分片的选择没有要求, 可以直接随机或者轮询.
+当然这样就造成了热key, 所以需要对这个key进行分片, 比如分1000片, 其key为`score_sn:<积分类型id>:<分片号>`. 这里对分片的选择没有要求, 可以直接随机或者轮询.
 
-而由于加了分片key, 不同分片`incr`后的值会有重复, 所以订单号需要带上分片号, 如`<incr结果值>_<crc32(uid)>_<时间戳>_<分片号>_<积分类型id>_<域>`. 
+而由于加了分片key, 不同分片`incr`后的值会有重复, 所以订单号需要带上分片号, 如`<时间戳>_<分片号>_<incr结果值>_<crc32(uid)>_<积分类型id>_<域>`. 
 
 ## 流水记录
 
