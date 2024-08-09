@@ -150,6 +150,11 @@ components:
 # 示例
 
 ```go
+app := zapp.NewApp("zapp.test.score",
+    score.WithService(),
+)
+defer app.Exit()
+
 const (
   scoreTypeID = 1
   domain      = "test_domain"
