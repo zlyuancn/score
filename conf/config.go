@@ -5,6 +5,7 @@ const ScoreConfigKey = "score"
 const (
 	defScoreRedisName           = "score"
 	defScoreDataKeyFormat       = "score:<score_type_id>:<domain>:{<uid>}"
+	defTryEvalShaScoreOP        = true
 	defOrderStatusKeyFormat     = "score_os:<order_id>:{<uid>}"
 	defGenOrderSeqNoKeyFormat   = "score_sn:<score_type_id>:<score_type_id_shard>"
 	defGenOrderSeqNoKeyShardNum = 1000
@@ -21,6 +22,7 @@ const (
 var Conf = Config{
 	ScoreRedisName:           defScoreRedisName,
 	ScoreDataKeyFormat:       defScoreDataKeyFormat,
+	TryEvalShaScoreOP:        defTryEvalShaScoreOP,
 	OrderStatusKeyFormat:     defOrderStatusKeyFormat,
 	GenOrderSeqNoKeyFormat:   defGenOrderSeqNoKeyFormat,
 	GenOrderSeqNoKeyShardNum: defGenOrderSeqNoKeyShardNum,
@@ -38,6 +40,7 @@ var Conf = Config{
 type Config struct {
 	ScoreRedisName           string // 积分数据redis组件名
 	ScoreDataKeyFormat       string // 积分数据key格式化字符串
+	TryEvalShaScoreOP        bool   // 尝试通过 redis EVALSHA 命令操作积分
 	OrderStatusKeyFormat     string // 订单状态key格式化字符串
 	GenOrderSeqNoKeyFormat   string // 订单号生成器key格式化字符串
 	GenOrderSeqNoKeyShardNum int32  // 生成订单序列号key的分片数

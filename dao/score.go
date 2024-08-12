@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/spf13/cast"
+	"github.com/zly-app/zapp/logger"
+	"github.com/zly-app/zapp/pkg/utils"
+	"go.uber.org/zap"
 
 	"github.com/zly-app/component/redis"
 
@@ -105,6 +108,12 @@ return status .. '_0'
 `
 )
 
+// 脚本sha1值, 如果存在则使用 EVALSHA 执行脚本
+var (
+	addScoreLuaSha1   = ""
+	resetScoreLuaSha1 = ""
+)
+
 // 订单不存在
 var ErrOrderNotFound = errors.New("order not found")
 
@@ -164,6 +173,14 @@ func AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain st
 	scoreDataKey := genScoreDataKey(scoreTypeID, domain, uid)
 	orderStatusKey := genOrderStatusKey(uid, orderID)
 
+	if addScoreLuaSha1 != "" {
+		statusResult, err := client.GetScoreRedisClient().EvalSha(ctx, addScoreLuaSha1, []string{scoreDataKey, orderStatusKey}, score, statusExpireSec).Result()
+		if err != nil {
+			return nil, 0, err
+		}
+		return parseStatus(cast.ToString(statusResult))
+	}
+
 	statusResult, err := client.GetScoreRedisClient().Eval(ctx, addScoreLua, []string{scoreDataKey, orderStatusKey}, score, statusExpireSec).Result()
 	if err != nil {
 		return nil, 0, err
@@ -176,6 +193,14 @@ func AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain st
 func ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain string, uid string, resetScore int64, statusExpireSec int64) (*model.OrderData, model.OrderStatus, error) {
 	scoreDataKey := genScoreDataKey(scoreTypeID, domain, uid)
 	orderStatusKey := genOrderStatusKey(uid, orderID)
+
+	if resetScoreLuaSha1 != "" {
+		statusResult, err := client.GetScoreRedisClient().EvalSha(ctx, resetScoreLuaSha1, []string{scoreDataKey, orderStatusKey}, resetScore, statusExpireSec).Result()
+		if err != nil {
+			return nil, 0, err
+		}
+		return parseStatus(cast.ToString(statusResult))
+	}
 
 	statusResult, err := client.GetScoreRedisClient().Eval(ctx, resetScoreLua, []string{scoreDataKey, orderStatusKey}, resetScore, statusExpireSec).Result()
 	if err != nil {
@@ -213,4 +238,31 @@ func parseStatus(statusValue string) (*model.OrderData, model.OrderStatus, error
 	}
 	status := model.OrderStatus(cast.ToInt8(ss[1]))
 	return ret, status, nil
+}
+
+// 尝试注入脚本
+func TryInjectScript() {
+	ctx := utils.Otel.CtxStart(context.Background(), "TryInjectScript", utils.OtelSpanKey("TryEvalShaScoreOP").Bool(conf.Conf.TryEvalShaScoreOP))
+	defer utils.Otel.CtxEnd(ctx)
+
+	if !conf.Conf.TryEvalShaScoreOP {
+		logger.Warn(ctx, "disable TryInjectScript")
+		return
+	}
+
+	sha1, err := client.GetScoreRedisClient().ScriptLoad(ctx, addScoreLua).Result()
+	if err != nil {
+		logger.Error(ctx, "TryInjectScript addScoreLua err", zap.Error(err))
+		return
+	}
+	addScoreLuaSha1 = sha1
+
+	sha1, err = client.GetScoreRedisClient().ScriptLoad(ctx, resetScoreLua).Result()
+	if err != nil {
+		logger.Error(ctx, "TryInjectScript resetScoreLua err", zap.Error(err))
+		return
+	}
+	resetScoreLuaSha1 = sha1
+
+	logger.Info(ctx, "TryInjectScript ok")
 }

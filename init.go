@@ -8,13 +8,14 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/zlyuancn/score/conf"
+	"github.com/zlyuancn/score/dao"
 	"github.com/zlyuancn/score/score_type"
 )
 
 func init() {
 	config.RegistryApolloNeedParseNamespace(conf.ScoreConfigKey)
 
-	score_type.Init()
+	score_type.StartLoopLoad()
 
 	zapp.AddHandler(zapp.BeforeInitializeHandler, func(app core.IApp, handlerType handler.HandlerType) {
 		err := app.GetConfig().Parse(conf.ScoreConfigKey, &conf.Conf, true)
@@ -22,5 +23,8 @@ func init() {
 			app.Fatal("parse score config err", zap.Error(err))
 		}
 		conf.Conf.Check()
+	})
+	zapp.AddHandler(zapp.AfterInitializeHandler, func(app core.IApp, handlerType handler.HandlerType) {
+		dao.TryInjectScript()
 	})
 }

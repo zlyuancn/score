@@ -24,7 +24,7 @@ var (
 	ErrScoreTypeInvalid = errors.New("score type invalid")
 )
 
-func Init() {
+func StartLoopLoad() {
 	loader = loopload.New("score_type", func(ctx context.Context) (map[uint32]*model.ScoreType, error) {
 		if conf.Conf.ScoreTypeRedisName != "" {
 			data, err := dao.GetAllScoreTypeByRedis(ctx)

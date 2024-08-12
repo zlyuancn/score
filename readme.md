@@ -122,6 +122,7 @@ key中的字符替换说明如下
 score:
   ScoreRedisName: "score" # 积分数据redis组件名
   ScoreDataKeyFormat: "score:<score_type_id>:<domain>:{<uid>}" # 积分数据key格式化字符串
+  TryEvalShaScoreOP: true # 尝试通过 redis EVALSHA 命令操作积分
   OrderStatusKeyFormat: "score_os:<order_id>:{<uid>}" # 订单状态key格式化字符串
   GenOrderSeqNoKeyFormat: "score_sn:<score_type_id>:<score_type_id_shard>" # 订单号生成器key格式化字符串
   GenOrderSeqNoKeyShardNum: 1000 # 生成订单序列号key的分片数
