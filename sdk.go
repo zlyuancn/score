@@ -50,9 +50,10 @@ func (s *sdkCli) GetScore(ctx context.Context) (int64, error) {
 	}
 	sp := &rspGetScore{}
 	err := chain.HandleInject(ctx, r, sp, func(ctx context.Context, req, rsp interface{}) error {
+		r := req.(*reqBase)
 		sp := rsp.(*rspGetScore)
 		var err error
-		sp.Score, err = scoreApi.GetScore(ctx, s.scoreTypeID, s.domain, s.uid)
+		sp.Score, err = scoreApi.GetScore(ctx, r.ScoreTypeID, r.Domain, r.Uid)
 		return err
 	})
 	return sp.Score, err
@@ -71,9 +72,10 @@ func (s *sdkCli) GenOrderSeqNo(ctx context.Context) (string, error) {
 	}
 	sp := &rspGenOrderSeqNo{}
 	err := chain.HandleInject(ctx, r, sp, func(ctx context.Context, req, rsp interface{}) error {
+		r := req.(*reqBase)
 		sp := rsp.(*rspGenOrderSeqNo)
 		var err error
-		sp.SeqNo, err = scoreApi.GenOrderSeqNo(ctx, s.scoreTypeID, s.domain, s.uid)
+		sp.SeqNo, err = scoreApi.GenOrderSeqNo(ctx, r.ScoreTypeID, r.Domain, r.Uid)
 		return err
 	})
 	return sp.SeqNo, err
@@ -103,9 +105,10 @@ func (s *sdkCli) AddScore(ctx context.Context, orderID string, score int64, rema
 	}
 	sp := &rspD{}
 	err := chain.HandleInject(ctx, r, sp, func(ctx context.Context, req, rsp interface{}) error {
+		r := req.(*reqOSR)
 		sp := rsp.(*rspD)
 		var err error
-		sp.Data, err = scoreApi.AddScore(ctx, s.scoreTypeID, s.domain, s.uid, orderID, score, remark)
+		sp.Data, err = scoreApi.AddScore(ctx, r.ScoreTypeID, r.Domain, r.Uid, r.OrderID, r.Score, r.Remark)
 		return err
 	})
 	return sp.Data, err
@@ -123,9 +126,10 @@ func (s *sdkCli) DeductScore(ctx context.Context, orderID string, score int64, r
 	}
 	sp := &rspD{}
 	err := chain.HandleInject(ctx, r, sp, func(ctx context.Context, req, rsp interface{}) error {
+		r := req.(*reqOSR)
 		sp := rsp.(*rspD)
 		var err error
-		sp.Data, err = scoreApi.DeductScore(ctx, s.scoreTypeID, s.domain, s.uid, orderID, score, remark)
+		sp.Data, err = scoreApi.DeductScore(ctx, r.ScoreTypeID, r.Domain, r.Uid, r.OrderID, r.Score, r.Remark)
 		return err
 	})
 	return sp.Data, err
@@ -143,9 +147,10 @@ func (s *sdkCli) ResetScore(ctx context.Context, orderID string, score int64, re
 	}
 	sp := &rspD{}
 	err := chain.HandleInject(ctx, r, sp, func(ctx context.Context, req, rsp interface{}) error {
+		r := req.(*reqOSR)
 		sp := rsp.(*rspD)
 		var err error
-		sp.Data, err = scoreApi.ResetScore(ctx, s.scoreTypeID, s.domain, s.uid, orderID, score, remark)
+		sp.Data, err = scoreApi.ResetScore(ctx, r.ScoreTypeID, r.Domain, r.Uid, r.OrderID, r.Score, r.Remark)
 		return err
 	})
 	return sp.Data, err
@@ -172,9 +177,10 @@ func (s *sdkCli) GetOrderStatus(ctx context.Context, orderID string) (*OrderData
 	}
 	sp := &rspDS{}
 	err := chain.HandleInject(ctx, r, sp, func(ctx context.Context, req, rsp interface{}) error {
+		r := req.(*reqO)
 		sp := rsp.(*rspDS)
 		var err error
-		sp.Data, sp.Status, err = scoreApi.GetOrderStatus(ctx, s.uid, orderID)
+		sp.Data, sp.Status, err = scoreApi.GetOrderStatus(ctx, r.Uid, r.OrderID)
 		return err
 	})
 	return sp.Data, sp.Status, err
