@@ -41,7 +41,7 @@ score 是一个积分系统, 可用于会员积分/系统内货币等.
 - [x] 获取订单状态
 - [ ] 同用户不同积分类型兑换. 暂不支持, 可以通过 [order](https://github.com/zlyuancn/order) 配合实现
 - [ ] 不同用户同积分类型转账. 暂不支持, 可以通过 [order](https://github.com/zlyuancn/order) 配合实现
-- [ ] ~~自定义订单id (用于支持特色业务, 比如领取积分防重发)~~ 很难实现, 可以通过 [order](https://github.com/zlyuancn/order) 配合实现
+- [ ] ~~自定义订单id (用于支持特色业务, 比如领取积分防重发)~~ 业务可以自行生成业务的订单id映射为积分系统的订单id来实现, 这可能需要额外存储其映射关系.
 
 
 - [x] 强校验参数(操作类型/操作数值/积分类型/域/uid)
@@ -53,7 +53,7 @@ score 是一个积分系统, 可用于会员积分/系统内货币等.
 - [x] 操作可重入
 
 
-- [ ] metrics上报
+- [x] metrics上报(已通过[filter](https://github.com/zly-app/zapp/tree/master/filter)实现)
 
 ---
 
@@ -61,14 +61,14 @@ score 是一个积分系统, 可用于会员积分/系统内货币等.
 
 ## 底层组件要求
 
-- redis 储存积分数据/订单状态, 也可以使用 kvrocks (兼容redis的硬盘储存nosql)
+- redis 储存积分类型/积分数据/订单状态, 也可以使用 [kvrocks](https://kvrocks.apache.org/) (兼容redis的硬盘存储nosql)
 - mysql(可选) 储存积分类型/积分流水, 可以使用 mysql/mariadb/pgsql 等
 
 ## sql文件导入(可选)
 
 1. 首先准备一个库名为 `score` 的mysql库. 这个库名可以根据sqlx组件配置的连接db库修改
 2. 创建积分类型表, 积分类型的表文件在[这里](./db_table/score_type.sql). 如果配置从redis加载可以不用操作这一步.
-3. 创建积分流水的分表, 默认为2个分表, 分表索引从0开始. 一开始应该设计好分表数量, 确认好后暂不支持修改分表数量, 如果你不知道设置为多少就设为1000. 注意, 配置文件中key`ScoreFlowTableShardNums`必须与这里设置的分片数量相同.
+3. 创建积分流水的分表, 默认为2个分表, 分表索引从0开始. 一开始应该设计好分表数量, 确认好后不支持修改分表数量, 如果你不知道设置为多少就设为1000. 注意, 配置文件中key`ScoreFlowTableShardNums`必须与这里设置的分片数量相同.
    1. 构建分表的工具为 [stf](https://github.com/zlyuancn/stt/tree/master/stf)
    2. 积分流水的分表文件在[这里](./db_table/score_flow_.sql)
    3. 在[这里](./db_table/score_flow_.out.sql)可以看到已经生成好了2个分表的sql文件, 可以直接导入.
@@ -83,7 +83,7 @@ score 是一个积分系统, 可用于会员积分/系统内货币等.
 | 订单状态     | OrderStatusKeyFormat   | score_os:\<order_id\>:{\<uid\>}                    | string   | 30天(可配置) | `<uid>`/`<order_id>`                      |
 | 订单号生成器 | GenOrderSeqNoKeyFormat | score_sn:\<score_type_id\>:\<score_type_id_shard\> | string   | 永久         | `<score_type_id>`/`<score_type_id_shard>` |
 
-其中订单状态key中加上`{<uid>}`的原因是在分布式redis系统中lua脚本要操作的这些key(积分数据/订单状态等)都要在同一个节点中, 而用户id的区分度较大, 能方便分散到不同节点避免单节点负载过高, 相同用户的数据放在同一个节点中对节点负载影响不大.
+其中订单状态key中加上`{<uid>}`的原因是在分布式redis系统中lua脚本要操作的这些key(积分数据/订单状态等)都要在同一个节点中, 而用户id的区分度较大, 能方便分散到不同节点避免单节点负载过高.
 
 key中的字符替换说明如下
 
@@ -164,18 +164,18 @@ const (
 sdk := score.NewSdk(scoreTypeID, domain, uid)
 
 // 生成订单id
-orderID, err := sdk.GenOrderSeqNo(ctx)
+orderID, _ := sdk.GenOrderSeqNo(ctx)
 
 // 增加score
-addOrderData, err := sdk.AddScore(ctx, orderID, 100, "add score")
+addOrderData, _ := sdk.AddScore(ctx, orderID, 100, "add score")
 // 扣除score
-deductOrderData, err := sdk.DeductScore(ctx, orderID, 30, "deduct score")
+deductOrderData, _ := sdk.DeductScore(ctx, orderID, 30, "deduct score")
 // 获取score
-score, err := sdk.GetScore(ctx)
+score, _ := sdk.GetScore(ctx)
 // 重设score
-resetOrderData, err := sdk.ResetScore(ctx, orderID, 66, "reset score")
+resetOrderData, _ := sdk.ResetScore(ctx, orderID, 66, "reset score")
 // 获取订单状态
-orderData, orderStatus, err := sdk.GetOrderStatus(ctx, orderID)
+orderData, orderStatus, _ := sdk.GetOrderStatus(ctx, orderID)
 ```
 
 ---
