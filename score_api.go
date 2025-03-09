@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/spf13/cast"
+	"github.com/zly-app/zapp/component/gpool"
+	"github.com/zly-app/zapp/pkg/utils"
 	"go.uber.org/zap"
 
 	"github.com/zly-app/zapp/logger"
@@ -17,6 +19,7 @@ import (
 	"github.com/zlyuancn/score/conf"
 	"github.com/zlyuancn/score/dao"
 	"github.com/zlyuancn/score/model"
+	"github.com/zlyuancn/score/score_flow"
 	"github.com/zlyuancn/score/score_type"
 )
 
@@ -68,8 +71,7 @@ func (scoreCli) GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain st
 
 // 增加积分
 func (s scoreCli) AddScore(ctx context.Context, scoreTypeID uint32, domain string, uid string, orderID string, score int64, remark string) (*OrderData, error) {
-	const api = "AddScore"
-	st, err := s.beforeScoreOp(ctx, api, scoreTypeID, domain, uid, orderID, score)
+	st, err := s.beforeScoreOp(ctx, model.OpType_Add, scoreTypeID, domain, uid, orderID, score, remark)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +91,7 @@ func (s scoreCli) AddScore(ctx context.Context, scoreTypeID uint32, domain strin
 		return nil, err
 	}
 
-	err = s.afterScoreOp(ctx, api, model.OpType_Add, scoreTypeID, domain, uid, orderID, score, remark, st, data, status)
+	err = s.afterScoreOp(ctx, model.OpType_Add, scoreTypeID, domain, uid, orderID, score, remark, st, data, status)
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +101,7 @@ func (s scoreCli) AddScore(ctx context.Context, scoreTypeID uint32, domain strin
 
 // 扣除积分
 func (s scoreCli) DeductScore(ctx context.Context, scoreTypeID uint32, domain string, uid string, orderID string, score int64, remark string) (*OrderData, error) {
-	const api = "DeductScore"
-	st, err := s.beforeScoreOp(ctx, api, scoreTypeID, domain, uid, orderID, score)
+	st, err := s.beforeScoreOp(ctx, model.OpType_Deduct, scoreTypeID, domain, uid, orderID, score, remark)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +121,7 @@ func (s scoreCli) DeductScore(ctx context.Context, scoreTypeID uint32, domain st
 		return nil, err
 	}
 
-	err = s.afterScoreOp(ctx, api, model.OpType_Deduct, scoreTypeID, domain, uid, orderID, score, remark, st, data, status)
+	err = s.afterScoreOp(ctx, model.OpType_Deduct, scoreTypeID, domain, uid, orderID, score, remark, st, data, status)
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +131,7 @@ func (s scoreCli) DeductScore(ctx context.Context, scoreTypeID uint32, domain st
 
 // 重设积分
 func (s scoreCli) ResetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string, orderID string, score int64, remark string) (*OrderData, error) {
-	const api = "ResetScore"
-	st, err := s.beforeScoreOp(ctx, api, scoreTypeID, domain, uid, orderID, score)
+	st, err := s.beforeScoreOp(ctx, model.OpType_Reset, scoreTypeID, domain, uid, orderID, score, remark)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func (s scoreCli) ResetScore(ctx context.Context, scoreTypeID uint32, domain str
 		return nil, err
 	}
 
-	err = s.afterScoreOp(ctx, api, model.OpType_Reset, scoreTypeID, domain, uid, orderID, score, remark, st, data, status)
+	err = s.afterScoreOp(ctx, model.OpType_Reset, scoreTypeID, domain, uid, orderID, score, remark, st, data, status)
 	if err != nil {
 		return nil, err
 	}
@@ -173,9 +173,11 @@ func (s scoreCli) GetOrderStatus(ctx context.Context, uid string, orderID string
 	return data, status, err
 }
 
-func (s scoreCli) beforeScoreOp(ctx context.Context, api string, scoreTypeID uint32, domain string, uid string, orderID string, score int64) (*model.ScoreType, error) {
+func (s scoreCli) beforeScoreOp(ctx context.Context, op model.OpType, scoreTypeID uint32, domain string, uid string, orderID string, score int64, remark string) (*model.ScoreType, error) {
+	opName := model.GetOpName(op)
 	if score < 0 {
-		logger.Log.Error(ctx, api+" beforeScoreOp err",
+		logger.Log.Error(ctx, "beforeScoreOp err",
+			zap.String("opName", opName),
 			zap.String("orderID", orderID),
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.String("domain", domain),
@@ -195,7 +197,8 @@ func (s scoreCli) beforeScoreOp(ctx context.Context, api string, scoreTypeID uin
 	// 检查订单id
 	err = s.verifyOrderID(orderID, scoreTypeID, domain, uid, int64(st.VerifyOrderCreateLessThan))
 	if err != nil {
-		logger.Log.Error(ctx, api+"beforeScoreOp verifyOrderID err",
+		logger.Log.Error(ctx, "beforeScoreOp verifyOrderID err",
+			zap.String("opName", opName),
 			zap.String("orderID", orderID),
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.String("scoreName", st.ScoreName),
@@ -207,10 +210,26 @@ func (s scoreCli) beforeScoreOp(ctx context.Context, api string, scoreTypeID uin
 		return nil, err
 	}
 
+	// 发送修改积分流水mq作为后置补偿写入流水
+	cmd := &OpCommand{
+		Op:          op,
+		ScoreTypeID: scoreTypeID,
+		Domain:      domain,
+		Uid:         uid,
+		OrderID:     orderID,
+		Score:       score,
+		Remark:      remark,
+	}
+	err = score_flow.SendChangeScoreMqSignal(ctx, cmd)
+	if err != nil {
+		logger.Log.Error(ctx, "beforeScoreOp call SendChangeScoreMqSignal fail", zap.Any("cmd", cmd), zap.Error(err))
+		return nil, err
+	}
+
 	return st, nil
 }
 
-func (s scoreCli) afterScoreOp(ctx context.Context, api string, op model.OpType, scoreTypeID uint32, domain string, uid string, orderID string, score int64,
+func (s scoreCli) afterScoreOp(ctx context.Context, op model.OpType, scoreTypeID uint32, domain string, uid string, orderID string, score int64,
 	remark string, st *model.ScoreType, orderData *model.OrderData, orderStatus model.OrderStatus) error {
 	// 流水数据
 	flow := &dao.ScoreFlowModel{
@@ -226,10 +245,13 @@ func (s scoreCli) afterScoreOp(ctx context.Context, api string, op model.OpType,
 		Remark:      remark,
 	}
 
+	opName := model.GetOpName(op)
+
 	// 检查重入时参数发生了变化
 	err := s.checkReentryParamsIsChanged(orderData, op, score)
 	if err != nil {
-		logger.Log.Error(ctx, api+" afterScoreOp checkReentryParamsIsChanged err",
+		logger.Log.Error(ctx, "afterScoreOp checkReentryParamsIsChanged err",
+			zap.String("opName", opName),
 			zap.String("scoreName", st.ScoreName),
 			zap.Any("flow", flow),
 			zap.Error(err),
@@ -239,20 +261,21 @@ func (s scoreCli) afterScoreOp(ctx context.Context, api string, op model.OpType,
 
 	// 写入流水
 	if conf.Conf.WriteScoreFlow {
-		err := dao.WriteScoreFlow(ctx, uid, flow)
-		if err != nil {
-			logger.Log.Error(ctx, api+" afterScoreOp dao.WriteScoreFlow err",
-				zap.Any("flow", flow),
-				zap.Error(err),
-			)
-			return err
-		}
+		cloneCtx := utils.Ctx.CloneContext(ctx)
+		gpool.GetDefGPool().Go(func() error {
+			return score_flow.WriteScoreFlow(cloneCtx, flow)
+		}, func(err error) {
+			if err != nil {
+				logger.Log.Error(cloneCtx, "afterScoreOp WriteScoreFlow fail", zap.Any("flow", flow), zap.Error(err))
+			}
+		})
 	}
 
 	// 检查状态
 	err = s.checkStatus(orderStatus)
 	if err != nil {
-		logger.Log.Error(ctx, api+" afterScoreOp checkStatus err",
+		logger.Log.Error(ctx, "afterScoreOp checkStatus err",
+			zap.String("opName", opName),
 			zap.String("scoreName", st.ScoreName),
 			zap.Int64("score", score),
 			zap.Any("flow", flow),
@@ -271,14 +294,16 @@ func (scoreCli) verifyOrderID(orderID string, scoreTypeID uint32, domain string,
 	}
 
 	uidHash := crc32.ChecksumIEEE([]byte(uid))
-	uidHashDoubleHex := strconv.FormatInt(int64(uidHash), 32)
-	if ss[3] != cast.ToString(uidHashDoubleHex) {
+	uidHashHex := strconv.FormatInt(int64(uidHash), 16)
+	if ss[3] != uidHashHex {
 		return errors.New("orderID not matched uid")
 	}
 	if ss[4] != cast.ToString(scoreTypeID) {
 		return errors.New("orderID not matched scoreTypeID")
 	}
-	if ss[5] != cast.ToString(domain) {
+	domainHash := crc32.ChecksumIEEE([]byte(domain))
+	domainHashHex := strconv.FormatInt(int64(domainHash), 16)
+	if ss[5] != domainHashHex {
 		return errors.New("orderID not matched domain")
 	}
 	timestamp, err := strconv.ParseInt(ss[0], 10, 64)

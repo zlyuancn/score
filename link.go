@@ -22,6 +22,8 @@ const (
 )
 
 type (
-	ScoreType       = model.ScoreType
+	ScoreType = model.ScoreType
 	OrderData = model.OrderData
 )
+
+type OpCommand = model.OpCommand

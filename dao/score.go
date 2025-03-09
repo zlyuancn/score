@@ -162,10 +162,12 @@ func GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string, uid s
 	}
 	const orderSeqNoFormat = "%d_%d_%d_%s_%d_%s"
 	uidHash := crc32.ChecksumIEEE([]byte(uid))
-	uidHashDoubleHex := strconv.FormatInt(int64(uidHash), 32)
+	uidHashHex := strconv.FormatInt(int64(uidHash), 16)
+	domainHash := crc32.ChecksumIEEE([]byte(domain))
+	domainHashHex := strconv.FormatInt(int64(domainHash), 16)
 
 	t := time.Now().Unix()
-	return fmt.Sprintf(orderSeqNoFormat, t, shard, no, uidHashDoubleHex, scoreTypeID, domain), nil
+	return fmt.Sprintf(orderSeqNoFormat, t, shard, no, uidHashHex, scoreTypeID, domainHashHex), nil
 }
 
 // 增加/扣除积分
