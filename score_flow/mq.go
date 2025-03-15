@@ -14,7 +14,7 @@ import (
 
 // 积分流水mq工具
 type ScoreFlowMq interface {
-	// 发送修改积分的mq信号, 延迟消费
+	// 发送修改积分的mq信号, 要求必须延迟消费. 消息触发时需要调用 TriggerMqSignalCallback
 	SendChangeScoreMqSignal(ctx context.Context, message string) error
 }
 
@@ -45,7 +45,7 @@ func SendChangeScoreMqSignal(ctx context.Context, cmd *model.OpCommand) error {
 	return nil
 }
 
-// 触发mq信号时回调
+// 触发后置补偿. 触发mq信号时回调
 func TriggerMqSignalCallback(ctx context.Context, message string) error {
 	cmd := &model.OpCommand{}
 	err := sonic.UnmarshalString(message, cmd)

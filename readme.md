@@ -206,6 +206,8 @@ orderData, orderStatus, _ := sdk.GetOrderStatus(ctx, orderID)
 
 score系统不会删除历史流水记录, 如果有这个需求, 需要业务层自行删除. 对于一般业务来说流水数据是重要的资产, 如果真的是储存满了且不想扩容, 可以写脚本删除历史数据, 没必要做定时删除任务.
 
+流水的写入可能会失败, 可以通过 `score_flow.InjectScoreFlowMq` 接入mq后置补偿, 要求mq必须延迟消费. 当mq消费时调用`score_flow.TriggerMqSignalCallback`触发后置补偿.
+
 ## 积分数据
 
 积分数据存放在 `redis`的`string`类型中, 每个用户在每个积分类型的每一个域下都有一个key, 其value为积分的值.
