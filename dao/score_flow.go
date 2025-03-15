@@ -60,7 +60,7 @@ func WriteScoreFlow(ctx context.Context, uid string, v *ScoreFlowModel) error {
 	})
 	cond, vals, err := builder.BuildInsertIgnore(tabName, data)
 	if err != nil {
-		logger.Log.Error(ctx, "score CreateOneModel BuildSelect err",
+		logger.Error(ctx, "score CreateOneModel BuildSelect err",
 			zap.Any("data", data),
 			zap.Error(err),
 		)
@@ -69,7 +69,7 @@ func WriteScoreFlow(ctx context.Context, uid string, v *ScoreFlowModel) error {
 
 	result, err := client.GetScoreFlowSqlxClient().Exec(ctx, cond, vals...)
 	if err != nil {
-		logger.Log.Error(ctx, "score CreateOneModel err",
+		logger.Error(ctx, "score CreateOneModel err",
 			zap.String("cond", cond),
 			zap.Any("vals", vals),
 			zap.Error(err),

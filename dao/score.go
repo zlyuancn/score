@@ -134,6 +134,11 @@ func genOrderStatusKey(uid string, orderID string) string {
 	return text
 }
 
+// 生成订单流水状态key
+func genOrderFlowStatusKey(uid string, orderID string) string {
+	return genOrderStatusKey(uid, orderID) + ":flow"
+}
+
 // 生成订单序列号生成器key
 func genGenOrderSeqNoKey(scoreTypeID uint32, scoreTypeIdShard int32) string {
 	text := conf.Conf.GenOrderSeqNoKeyFormat
@@ -223,6 +228,26 @@ func GetOrderStatus(ctx context.Context, orderID string, uid string) (*model.Ord
 		return nil, 0, err
 	}
 	return parseStatus(statusResult + "_0")
+}
+
+// 获取订单流水状态
+func GetOrderFlowStatus(ctx context.Context, orderID string, uid string) (bool, error) {
+	key := genOrderFlowStatusKey(uid, orderID)
+	v, err := client.GetScoreRedisClient().Get(ctx, key).Result()
+	if err == redis.Nil {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return v == "1", err
+}
+
+// 标记订单流水状态已落库
+func MarkOrderFlowStatusOk(ctx context.Context, orderID string, uid string, statusExpireSec int64) error {
+	key := genOrderFlowStatusKey(uid, orderID)
+	err := client.GetScoreRedisClient().Set(ctx, key, "1", time.Duration(statusExpireSec)*time.Second).Err()
+	return err
 }
 
 func parseStatus(statusValue string) (*model.OrderData, model.OrderStatus, error) {

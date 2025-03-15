@@ -9,6 +9,7 @@ import (
 
 	"github.com/zlyuancn/score/dao"
 	"github.com/zlyuancn/score/model"
+	"github.com/zlyuancn/score/score_type"
 )
 
 // 积分流水mq工具
@@ -53,6 +54,12 @@ func TriggerMqSignalCallback(ctx context.Context, message string) error {
 		return nil
 	}
 
+	// 检查积分类型
+	st, err := score_type.GetScoreType(ctx, cmd.ScoreTypeID)
+	if err != nil {
+		return err
+	}
+
 	// 获取状态
 	orderData, orderStatus, err := dao.GetOrderStatus(ctx, cmd.OrderID, cmd.Uid)
 	if err == dao.ErrOrderNotFound {
@@ -61,7 +68,7 @@ func TriggerMqSignalCallback(ctx context.Context, message string) error {
 		return nil
 	}
 	if err != nil {
-		logger.Log.Error(ctx, "GetOrderStatus err",
+		logger.Error(ctx, "GetOrderStatus err",
 			zap.String("orderID", cmd.OrderID),
 			zap.String("uid", cmd.Uid),
 			zap.Error(err),
@@ -82,7 +89,7 @@ func TriggerMqSignalCallback(ctx context.Context, message string) error {
 		Uid:         cmd.Uid,
 		Remark:      cmd.Remark,
 	}
-	err = WriteScoreFlow(ctx, flow)
+	err = WriteScoreFlow(ctx, st, flow)
 	if err != nil {
 		logger.Error(ctx, "TriggerMqSignal call WriteScoreFlow fail", zap.Any("flow", flow), zap.Error(err))
 		return err

@@ -36,7 +36,7 @@ func (scoreCli) GetScore(ctx context.Context, scoreTypeID uint32, domain string,
 
 	score, err := dao.GetScore(ctx, scoreTypeID, domain, uid)
 	if err != nil {
-		logger.Log.Error(ctx, "GetScore dao.GetScore err",
+		logger.Error(ctx, "GetScore dao.GetScore err",
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.String("scoreName", st.ScoreName),
 			zap.String("domain", domain),
@@ -57,7 +57,7 @@ func (scoreCli) GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain st
 
 	seqNo, err := dao.GenOrderSeqNo(ctx, scoreTypeID, domain, uid)
 	if err != nil {
-		logger.Log.Error(ctx, "GenOrderSeqNo dao.GenOrderSeqNo err",
+		logger.Error(ctx, "GenOrderSeqNo dao.GenOrderSeqNo err",
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.String("scoreName", st.ScoreName),
 			zap.String("domain", domain),
@@ -79,7 +79,7 @@ func (s scoreCli) AddScore(ctx context.Context, scoreTypeID uint32, domain strin
 	// 增加积分
 	data, status, err := dao.AddScore(ctx, orderID, scoreTypeID, domain, uid, score, int64(st.OrderStatusExpireDay)*86400)
 	if err != nil {
-		logger.Log.Error(ctx, "AddScore dao.AddScore err",
+		logger.Error(ctx, "AddScore dao.AddScore err",
 			zap.String("orderID", orderID),
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.String("scoreName", st.ScoreName),
@@ -109,7 +109,7 @@ func (s scoreCli) DeductScore(ctx context.Context, scoreTypeID uint32, domain st
 	// 扣除积分
 	data, status, err := dao.AddScore(ctx, orderID, scoreTypeID, domain, uid, -score, int64(st.OrderStatusExpireDay)*86400)
 	if err != nil {
-		logger.Log.Error(ctx, "DeductScore dao.AddScore err",
+		logger.Error(ctx, "DeductScore dao.AddScore err",
 			zap.String("orderID", orderID),
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.String("scoreName", st.ScoreName),
@@ -139,7 +139,7 @@ func (s scoreCli) ResetScore(ctx context.Context, scoreTypeID uint32, domain str
 	// 重设积分
 	data, status, err := dao.ResetScore(ctx, orderID, scoreTypeID, domain, uid, score, int64(st.OrderStatusExpireDay)*86400)
 	if err != nil {
-		logger.Log.Error(ctx, "ResetScore dao.ResetScore err",
+		logger.Error(ctx, "ResetScore dao.ResetScore err",
 			zap.String("orderID", orderID),
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.String("scoreName", st.ScoreName),
@@ -163,7 +163,7 @@ func (s scoreCli) ResetScore(ctx context.Context, scoreTypeID uint32, domain str
 func (s scoreCli) GetOrderStatus(ctx context.Context, uid string, orderID string) (*OrderData, OrderStatus, error) {
 	data, status, err := dao.GetOrderStatus(ctx, orderID, uid)
 	if err != nil {
-		logger.Log.Error(ctx, "GetOrderStatus err",
+		logger.Error(ctx, "GetOrderStatus err",
 			zap.String("orderID", orderID),
 			zap.String("uid", uid),
 			zap.Error(err),
@@ -176,7 +176,7 @@ func (s scoreCli) GetOrderStatus(ctx context.Context, uid string, orderID string
 func (s scoreCli) beforeScoreOp(ctx context.Context, op model.OpType, scoreTypeID uint32, domain string, uid string, orderID string, score int64, remark string) (*model.ScoreType, error) {
 	opName := model.GetOpName(op)
 	if score < 0 {
-		logger.Log.Error(ctx, "beforeScoreOp err",
+		logger.Error(ctx, "beforeScoreOp err",
 			zap.String("opName", opName),
 			zap.String("orderID", orderID),
 			zap.Uint32("scoreTypeID", scoreTypeID),
@@ -197,7 +197,7 @@ func (s scoreCli) beforeScoreOp(ctx context.Context, op model.OpType, scoreTypeI
 	// 检查订单id
 	err = s.verifyOrderID(orderID, scoreTypeID, domain, uid, int64(st.VerifyOrderCreateLessThan))
 	if err != nil {
-		logger.Log.Error(ctx, "beforeScoreOp verifyOrderID err",
+		logger.Error(ctx, "beforeScoreOp verifyOrderID err",
 			zap.String("opName", opName),
 			zap.String("orderID", orderID),
 			zap.Uint32("scoreTypeID", scoreTypeID),
@@ -222,7 +222,7 @@ func (s scoreCli) beforeScoreOp(ctx context.Context, op model.OpType, scoreTypeI
 	}
 	err = score_flow.SendChangeScoreMqSignal(ctx, cmd)
 	if err != nil {
-		logger.Log.Error(ctx, "beforeScoreOp call SendChangeScoreMqSignal fail", zap.Any("cmd", cmd), zap.Error(err))
+		logger.Error(ctx, "beforeScoreOp call SendChangeScoreMqSignal fail", zap.Any("cmd", cmd), zap.Error(err))
 		return nil, err
 	}
 
@@ -250,7 +250,7 @@ func (s scoreCli) afterScoreOp(ctx context.Context, op model.OpType, scoreTypeID
 	// 检查重入时参数发生了变化
 	err := s.checkReentryParamsIsChanged(orderData, op, score)
 	if err != nil {
-		logger.Log.Error(ctx, "afterScoreOp checkReentryParamsIsChanged err",
+		logger.Error(ctx, "afterScoreOp checkReentryParamsIsChanged err",
 			zap.String("opName", opName),
 			zap.String("scoreName", st.ScoreName),
 			zap.Any("flow", flow),
@@ -263,10 +263,10 @@ func (s scoreCli) afterScoreOp(ctx context.Context, op model.OpType, scoreTypeID
 	if conf.Conf.WriteScoreFlow {
 		cloneCtx := utils.Ctx.CloneContext(ctx)
 		gpool.GetDefGPool().Go(func() error {
-			return score_flow.WriteScoreFlow(cloneCtx, flow)
+			return score_flow.WriteScoreFlow(cloneCtx, st, flow)
 		}, func(err error) {
 			if err != nil {
-				logger.Log.Error(cloneCtx, "afterScoreOp WriteScoreFlow fail", zap.Any("flow", flow), zap.Error(err))
+				logger.Error(cloneCtx, "afterScoreOp WriteScoreFlow fail", zap.Any("flow", flow), zap.Error(err))
 			}
 		})
 	}
@@ -274,7 +274,7 @@ func (s scoreCli) afterScoreOp(ctx context.Context, op model.OpType, scoreTypeID
 	// 检查状态
 	err = s.checkStatus(orderStatus)
 	if err != nil {
-		logger.Log.Error(ctx, "afterScoreOp checkStatus err",
+		logger.Error(ctx, "afterScoreOp checkStatus err",
 			zap.String("opName", opName),
 			zap.String("scoreName", st.ScoreName),
 			zap.Int64("score", score),

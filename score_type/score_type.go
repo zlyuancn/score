@@ -84,7 +84,7 @@ func StartLoopLoad() {
 func GetScoreType(ctx context.Context, scoreTypeID uint32) (*model.ScoreType, error) {
 	st, err := getScoreType(ctx, scoreTypeID)
 	if err != nil {
-		logger.Log.Error(ctx, "GetScoreType err",
+		logger.Error(ctx, "GetScoreType err",
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.Error(err),
 		)
