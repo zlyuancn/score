@@ -5,6 +5,7 @@ import (
 
 	"github.com/zly-app/zapp/component/gpool"
 	"github.com/zly-app/zapp/logger"
+	"github.com/zly-app/zapp/pkg/utils"
 	"go.uber.org/zap"
 
 	"github.com/zlyuancn/score/dao"
@@ -35,10 +36,11 @@ func WriteScoreFlow(ctx context.Context, st *model.ScoreType, flow *dao.ScoreFlo
 	}
 
 	// 标记订单流水状态已落库
+	cloneCtx := utils.Ctx.CloneContext(ctx)
 	gpool.GetDefGPool().Go(func() error {
-		err = dao.MarkOrderFlowStatusOk(ctx, flow.OrderID, flow.Uid, int64(st.OrderStatusExpireDay)*86400)
+		err = dao.MarkOrderFlowStatusOk(cloneCtx, flow.OrderID, flow.Uid, int64(st.OrderStatusExpireDay)*86400)
 		if err != nil {
-			logger.Error(ctx, "afterScoreOp dao.MarkOrderFlowStatusOk fail", zap.Error(err))
+			logger.Error(cloneCtx, "afterScoreOp dao.MarkOrderFlowStatusOk fail", zap.Error(err))
 			// 这里不影响主进程
 		}
 		return nil
