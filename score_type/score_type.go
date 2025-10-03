@@ -82,7 +82,7 @@ func StartLoopLoad() {
 
 // 获取积分类型
 func GetScoreType(ctx context.Context, scoreTypeID uint32) (*model.ScoreType, error) {
-	st, err := getScoreType(ctx, scoreTypeID)
+	st, err := getScoreType(ctx, scoreTypeID, false)
 	if err != nil {
 		logger.Error(ctx, "GetScoreType err",
 			zap.Uint32("scoreTypeID", scoreTypeID),
@@ -91,7 +91,20 @@ func GetScoreType(ctx context.Context, scoreTypeID uint32) (*model.ScoreType, er
 	}
 	return st, err
 }
-func getScoreType(ctx context.Context, scoreTypeID uint32) (*model.ScoreType, error) {
+
+// 获取积分类型, 忽略积分有效期
+func ForceGetScoreType(ctx context.Context, scoreTypeID uint32) (*model.ScoreType, error) {
+	st, err := getScoreType(ctx, scoreTypeID, true)
+	if err != nil {
+		logger.Error(ctx, "ForceGetScoreType err",
+			zap.Uint32("scoreTypeID", scoreTypeID),
+			zap.Error(err),
+		)
+	}
+	return st, err
+}
+
+func getScoreType(ctx context.Context, scoreTypeID uint32, force bool) (*model.ScoreType, error) {
 	all := loader.Get(ctx)
 	st, ok := all[scoreTypeID]
 	if !ok {
@@ -99,14 +112,14 @@ func getScoreType(ctx context.Context, scoreTypeID uint32) (*model.ScoreType, er
 	}
 
 	now := int64(0)
-	if st.StartTime > 0 {
+	if !force && st.StartTime > 0 {
 		now = time.Now().Unix()
 		if now < st.StartTime {
 			return nil, ErrScoreTypeInvalid
 		}
 	}
 
-	if st.EndTime > 0 {
+	if !force && st.EndTime > 0 {
 		if now == 0 {
 			now = time.Now().Unix()
 		}

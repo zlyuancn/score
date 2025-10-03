@@ -14,13 +14,13 @@ import (
 
 // 写入积分流水
 func WriteScoreFlow(ctx context.Context, st *model.ScoreType, flow *dao.ScoreFlowModel) error {
-	// 获取订单流水状态
+	// 获取订单流水落库状态
 	ok, err := dao.GetOrderFlowStatus(ctx, flow.OrderID, flow.Uid)
 	if err != nil {
 		logger.Error(ctx, "WriteScoreFlow call GetOrderFlowStatus fail", zap.Error(err))
 		// 这里不要返回err, 这里相当于没有拦截住透传到db层
 	}
-	if ok {
+	if ok { // 已经落库成功则忽略
 		return nil
 	}
 

@@ -14,7 +14,7 @@ import (
 
 // 积分流水mq工具
 type ScoreFlowMq interface {
-	// 发送修改积分的mq信号, 要求必须延迟消费. 消息触发时需要调用 TriggerMqSignalCallback
+	// 发送修改积分的mq信号, 要求必须延迟5秒以上消费. 消息触发时需要调用 TriggerMqSignalCallback
 	SendChangeScoreMqSignal(ctx context.Context, message string) error
 }
 
@@ -55,7 +55,7 @@ func TriggerMqSignalCallback(ctx context.Context, message string) error {
 	}
 
 	// 检查积分类型
-	st, err := score_type.GetScoreType(ctx, cmd.ScoreTypeID)
+	st, err := score_type.ForceGetScoreType(ctx, cmd.ScoreTypeID)
 	if err != nil {
 		return err
 	}

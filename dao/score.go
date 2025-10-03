@@ -134,7 +134,7 @@ func genOrderStatusKey(uid string, orderID string) string {
 	return text
 }
 
-// 生成订单流水状态key
+// 生成订单流水落库状态key
 func genOrderFlowStatusKey(uid string, orderID string) string {
 	return genOrderStatusKey(uid, orderID) + ":flow"
 }
@@ -230,7 +230,7 @@ func GetOrderStatus(ctx context.Context, orderID string, uid string) (*model.Ord
 	return parseStatus(statusResult + "_0")
 }
 
-// 获取订单流水状态
+// 获取订单流水落库状态
 func GetOrderFlowStatus(ctx context.Context, orderID string, uid string) (bool, error) {
 	key := genOrderFlowStatusKey(uid, orderID)
 	v, err := client.GetScoreRedisClient().Get(ctx, key).Result()
