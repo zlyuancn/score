@@ -52,3 +52,15 @@ type OpCommand struct {
 	// 备注
 	Remark string `json:"g"`
 }
+
+// mq数据类型
+type MqDataType int8
+
+const (
+	MqDataType_ScoreChange MqDataType = 1 // 积分变更
+)
+
+type MqData struct {
+	Type                 MqDataType `json:"t"`
+	ScoreChangeOpCommand *OpCommand `json:"a,omitempty"`
+}

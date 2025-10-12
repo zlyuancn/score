@@ -16,11 +16,11 @@ import (
 
 	"github.com/zly-app/zapp/logger"
 
-	"github.com/zlyuancn/score/conf"
 	"github.com/zlyuancn/score/dao"
 	"github.com/zlyuancn/score/model"
-	"github.com/zlyuancn/score/score_flow"
+	"github.com/zlyuancn/score/mq"
 	"github.com/zlyuancn/score/score_type"
+	"github.com/zlyuancn/score/side_effect"
 )
 
 var scoreApi = scoreCli{}
@@ -210,19 +210,22 @@ func (s scoreCli) beforeScoreOp(ctx context.Context, op model.OpType, scoreTypeI
 		return nil, err
 	}
 
-	// 发送修改积分流水mq作为后置补偿写入流水
-	cmd := &OpCommand{
-		Op:          op,
-		ScoreTypeID: scoreTypeID,
-		Domain:      domain,
-		Uid:         uid,
-		OrderID:     orderID,
-		Score:       score,
-		Remark:      remark,
+	// 发送mq告知积分变更
+	data := &model.MqData{
+		Type: model.MqDataType_ScoreChange,
+		ScoreChangeOpCommand: &OpCommand{
+			Op:          op,
+			ScoreTypeID: scoreTypeID,
+			Domain:      domain,
+			Uid:         uid,
+			OrderID:     orderID,
+			Score:       score,
+			Remark:      remark,
+		},
 	}
-	err = score_flow.SendChangeScoreMqSignal(ctx, cmd)
+	err = mq.TriggerSendMq(ctx, data)
 	if err != nil {
-		logger.Error(ctx, "beforeScoreOp call SendChangeScoreMqSignal fail", zap.Any("cmd", cmd), zap.Error(err))
+		logger.Error(ctx, "beforeScoreOp call mq.TriggerSendMq fail", zap.Any("cmd", data), zap.Error(err))
 		return nil, err
 	}
 
@@ -259,17 +262,15 @@ func (s scoreCli) afterScoreOp(ctx context.Context, op model.OpType, scoreTypeID
 		return err
 	}
 
-	// 写入流水
-	if conf.Conf.WriteScoreFlow {
-		cloneCtx := utils.Ctx.CloneContext(ctx)
-		gpool.GetDefGPool().Go(func() error {
-			return score_flow.WriteScoreFlow(cloneCtx, st, flow)
-		}, func(err error) {
-			if err != nil {
-				logger.Error(cloneCtx, "afterScoreOp WriteScoreFlow fail", zap.Any("flow", flow), zap.Error(err))
-			}
-		})
-	}
+	// 副作用
+	cloneCtx := utils.Ctx.CloneContext(ctx)
+	gpool.GetDefGPool().Go(func() error {
+		return side_effect.TriggerScoreChange(cloneCtx, st, flow)
+	}, func(err error) {
+		if err != nil {
+			logger.Error(cloneCtx, "afterScoreOp call side_effect.TriggerScoreChange fail", zap.Any("flow", flow), zap.Error(err))
+		}
+	})
 
 	// 检查状态
 	err = s.checkStatus(orderStatus)

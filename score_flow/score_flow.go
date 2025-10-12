@@ -8,16 +8,17 @@ import (
 	"github.com/zly-app/zapp/pkg/utils"
 	"go.uber.org/zap"
 
+	"github.com/zlyuancn/score/conf"
 	"github.com/zlyuancn/score/dao"
 	"github.com/zlyuancn/score/model"
 )
 
 // 写入积分流水
-func WriteScoreFlow(ctx context.Context, st *model.ScoreType, flow *dao.ScoreFlowModel) error {
+func writeScoreFlow(ctx context.Context, st *model.ScoreType, flow *dao.ScoreFlowModel) error {
 	// 获取订单流水落库状态
 	ok, err := dao.GetOrderFlowStatus(ctx, flow.OrderID, flow.Uid)
 	if err != nil {
-		logger.Error(ctx, "WriteScoreFlow call GetOrderFlowStatus fail", zap.Error(err))
+		logger.Error(ctx, "writeScoreFlow call GetOrderFlowStatus fail", zap.Error(err))
 		// 这里不要返回err, 这里相当于没有拦截住透传到db层
 	}
 	if ok { // 已经落库成功则忽略
@@ -27,7 +28,7 @@ func WriteScoreFlow(ctx context.Context, st *model.ScoreType, flow *dao.ScoreFlo
 	opName := model.GetOpName(model.OpType(flow.OpType))
 	err = dao.WriteScoreFlow(ctx, flow.Uid, flow)
 	if err != nil {
-		logger.Error(ctx, "afterScoreOp dao.WriteScoreFlow fail",
+		logger.Error(ctx, "afterScoreOp dao.writeScoreFlow fail",
 			zap.String("opName", opName),
 			zap.Any("flow", flow),
 			zap.Error(err),
@@ -46,5 +47,20 @@ func WriteScoreFlow(ctx context.Context, st *model.ScoreType, flow *dao.ScoreFlo
 		return nil
 	}, nil)
 
+	return nil
+}
+
+type ScoreChangeSideEffect int
+
+func (ScoreChangeSideEffect) ScoreChange(ctx context.Context, st *model.ScoreType, flow *dao.ScoreFlowModel) error {
+	if !conf.Conf.WriteScoreFlow {
+		return nil
+	}
+
+	// 写入流水
+	err := writeScoreFlow(ctx, st, flow)
+	if err != nil {
+		logger.Error(ctx, "SideEffect.ScoreChange call writeScoreFlow fail", zap.Any("flow", flow), zap.Error(err))
+	}
 	return nil
 }
