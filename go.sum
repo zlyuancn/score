@@ -349,6 +349,8 @@ github.com/zly-app/utils/loopload v0.0.0-20240509094255-fb7e42f16ee4/go.mod h1:5
 github.com/zly-app/zapp v1.3.17/go.mod h1:1w5AkqKazGiTSb6mWZN4UWph+2jwCbTghALVV7s8mH8=
 github.com/zly-app/zapp v1.3.21 h1:esMDqMxU4Xuofh7I6c+kGzh1z9+FZi/Exopbjp1b2V8=
 github.com/zly-app/zapp v1.3.21/go.mod h1:ARKIUXe2HKDeGvs8KxgR3KGEOpmmDsXrPh6LMg8QQjU=
+github.com/zlyuancn/lcgr v0.0.0-20250928023830-55fd2978a36b h1:6qpGMIlN/Ys79zXzs3HZFjCCn0YapOuD9ec/PQ/Sn4w=
+github.com/zlyuancn/lcgr v0.0.0-20250928023830-55fd2978a36b/go.mod h1:cmoBiGfTbceirauoNNXOxHRLuKVK2wcijA3/dQb5Xr0=
 github.com/zlyuancn/zutils v0.0.0-20231227021140-f376aa4846f0 h1:Mw8GmEbDORlj0x2RNxh4y3guBXN+5zmMeSYpCpSHSQI=
 github.com/zlyuancn/zutils v0.0.0-20231227021140-f376aa4846f0/go.mod h1:Yiud7A5xwU2/bgiQ2DYEn2T17wBZfss9DYMB2AvkHEA=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=

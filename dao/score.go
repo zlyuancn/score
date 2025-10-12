@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cast"
 	"github.com/zly-app/zapp/logger"
 	"github.com/zly-app/zapp/pkg/utils"
+	"github.com/zlyuancn/lcgr"
 	"go.uber.org/zap"
 
 	"github.com/zly-app/component/redis"
@@ -161,18 +162,25 @@ func GetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string
 func GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string, uid string) (string, error) {
 	shard := rand.Int31n(conf.Conf.GenOrderSeqNoKeyShardNum)
 	key := genGenOrderSeqNoKey(scoreTypeID, shard)
-	no, err := client.GetScoreRedisClient().IncrBy(ctx, key, 1).Result()
+	no, err := client.GetScoreRedisClient().IncrBy(ctx, key, 1).Uint64()
 	if err != nil {
 		return "", err
 	}
-	const orderSeqNoFormat = "%d_%d_%d_%s_%d_%s"
+	const orderSeqNoFormat = "%d_%d_%s_%s_%d_%s"
 	uidHash := crc32.ChecksumIEEE([]byte(uid))
 	uidHashHex := strconv.FormatInt(int64(uidHash), 16)
 	domainHash := crc32.ChecksumIEEE([]byte(domain))
 	domainHashHex := strconv.FormatInt(int64(domainHash), 16)
 
 	t := time.Now().Unix()
-	return fmt.Sprintf(orderSeqNoFormat, t, shard, no, uidHashHex, scoreTypeID, domainHashHex), nil
+
+	// 限制编号不能达到 1e6. 这里个序列号分片能支撑每个用户每秒创建100w个订单
+	if no >= 1e6 {
+		no %= 1e6
+	}
+	noR := lcgr.ConfuseLimitLen(no, uint64(shard), 6)
+	noText := strconv.FormatUint(noR, 32)
+	return fmt.Sprintf(orderSeqNoFormat, t, shard, noText, uidHashHex, scoreTypeID, domainHashHex), nil
 }
 
 // 增加/扣除积分
