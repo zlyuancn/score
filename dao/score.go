@@ -174,11 +174,11 @@ func GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string, uid s
 
 	t := time.Now().Unix()
 
-	// 限制编号不能达到 1e6. 这里个序列号分片能支撑每个用户每秒创建100w个订单
-	if no >= 1e6 {
-		no %= 1e6
+	// 限制编号不能达到 1e9. 这里个序列号分片能支撑每个用户每秒创建100w个订单
+	if no >= 1e9 {
+		no %= 1e9
 	}
-	noR := lcgr.ConfuseLimitLen(no, uint64(shard), 6)
+	noR := lcgr.ConfuseLimitLen(no, uint64(shard), 9)
 	noText := strconv.FormatUint(noR, 32)
 	return fmt.Sprintf(orderSeqNoFormat, t, shard, noText, uidHashHex, scoreTypeID, domainHashHex), nil
 }
