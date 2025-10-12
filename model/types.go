@@ -53,14 +53,14 @@ type OpCommand struct {
 	Remark string `json:"g"`
 }
 
-// mq数据类型
-type MqDataType int8
+// 副作用类型
+type SideEffectType int8
 
 const (
-	MqDataType_ScoreChange MqDataType = 1 // 积分变更
+	SideEffectType_ScoreChange SideEffectType = 1 // 积分变更
 )
 
-type MqData struct {
-	Type                 MqDataType `json:"t"`
-	ScoreChangeOpCommand *OpCommand `json:"a,omitempty"`
+type SideEffect struct {
+	Type                 SideEffectType `json:"t"`
+	ScoreChangeOpCommand *OpCommand     `json:"a,omitempty"`
 }

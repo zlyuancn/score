@@ -1,7 +1,10 @@
 package score
 
 import (
+	"context"
+
 	"github.com/zlyuancn/score/model"
+	"github.com/zlyuancn/score/side_effect"
 )
 
 // 操作类型
@@ -26,4 +29,28 @@ type (
 	OrderData = model.OrderData
 )
 
-type OpCommand = model.OpCommand
+// mq工具
+type MqTool = side_effect.MqTool
+
+// 注册mq工具
+func RegistryMqTool(v MqTool) {
+	side_effect.RegistryMqTool(v)
+}
+
+// 触发mq回调. 触发mq信号时回调. 如果这个函数失败, 要求业务mq重试
+func TriggerMqHandle(ctx context.Context, payload string) error {
+	return side_effect.TriggerMqHandle(ctx, payload)
+}
+
+// 副作用
+type SideEffect = side_effect.SideEffect
+
+// 注册副作用, 重复注册同一个name会导致panic
+func RegistrySideEffect(name string, se SideEffect) {
+	side_effect.RegistrySideEffect(name, se)
+}
+
+// 取消注册副作用
+func UnRegistrySideEffect(name string) {
+	side_effect.UnRegistrySideEffect(name)
+}

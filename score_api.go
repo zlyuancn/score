@@ -18,7 +18,6 @@ import (
 
 	"github.com/zlyuancn/score/dao"
 	"github.com/zlyuancn/score/model"
-	"github.com/zlyuancn/score/mq"
 	"github.com/zlyuancn/score/score_type"
 	"github.com/zlyuancn/score/side_effect"
 )
@@ -210,10 +209,10 @@ func (s scoreCli) beforeScoreOp(ctx context.Context, op model.OpType, scoreTypeI
 		return nil, err
 	}
 
-	// 发送mq告知积分变更
-	data := &model.MqData{
-		Type: model.MqDataType_ScoreChange,
-		ScoreChangeOpCommand: &OpCommand{
+	// 准备副作用
+	data := &model.SideEffect{
+		Type: model.SideEffectType_ScoreChange,
+		ScoreChangeOpCommand: &model.OpCommand{
 			Op:          op,
 			ScoreTypeID: scoreTypeID,
 			Domain:      domain,
@@ -223,7 +222,7 @@ func (s scoreCli) beforeScoreOp(ctx context.Context, op model.OpType, scoreTypeI
 			Remark:      remark,
 		},
 	}
-	err = mq.TriggerSendMq(ctx, data)
+	err = side_effect.PrepareSideEffect(ctx, data)
 	if err != nil {
 		logger.Error(ctx, "beforeScoreOp call mq.TriggerSendMq fail", zap.Any("cmd", data), zap.Error(err))
 		return nil, err
