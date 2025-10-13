@@ -12,25 +12,42 @@ import (
 	"github.com/zlyuancn/score/model"
 )
 
+// 副作用, 必须继承 BaseSideEffect
 type SideEffect interface {
+	abstract()
 	// 积分变更回调, 可能会调用多次, 业务需要自行处理幂等性(可重入)
 	ScoreChange(ctx context.Context, st *model.ScoreType, flow *dao.ScoreFlowModel) error
 }
 
-var seList = make(map[string]SideEffect, 0)
+type BaseSideEffect struct{}
 
-// 注册副作用
-func RegistrySideEffect(name string, se SideEffect) {
+func (BaseSideEffect) abstract() {}
+
+var seMap = make(map[model.SideEffectType]map[string]SideEffect, 0)
+
+// 注册副作用, 重复注册同一个name会导致panic
+func RegistrySideEffect(t model.SideEffectType, name string, se SideEffect) {
+	seList, ok := seMap[t]
+	if !ok {
+		seMap[t] = map[string]SideEffect{
+			name: se,
+		}
+		return
+	}
+
 	l := len(seList)
 	seList[name] = se
 	if l == len(seList) {
-		panic(fmt.Errorf("RegistrySideEffect repetition name=%s", name))
+		panic(fmt.Errorf("RegistrySideEffect repetition name=%s type=%d", name, int(t)))
 	}
 }
 
-// 注册副作用, 重复注册同一个name会导致panic
-func UnRegistrySideEffect(name string) {
-	delete(seList, name)
+// 取消注册副作用
+func UnRegistrySideEffect(t model.SideEffectType, name string) {
+	seList, ok := seMap[t]
+	if ok {
+		delete(seList, name)
+	}
 }
 
 var sideEffectTypeResolver = map[model.SideEffectType]func(ctx context.Context, data *model.SideEffect) error{

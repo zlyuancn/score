@@ -11,6 +11,7 @@ import (
 	"github.com/zlyuancn/score/conf"
 	"github.com/zlyuancn/score/dao"
 	"github.com/zlyuancn/score/model"
+	"github.com/zlyuancn/score/side_effect"
 )
 
 // 写入积分流水
@@ -50,7 +51,9 @@ func writeScoreFlow(ctx context.Context, st *model.ScoreType, flow *dao.ScoreFlo
 	return nil
 }
 
-type ScoreChangeSideEffect int
+type ScoreChangeSideEffect struct {
+	side_effect.BaseSideEffect
+}
 
 func (ScoreChangeSideEffect) ScoreChange(ctx context.Context, st *model.ScoreType, flow *dao.ScoreFlowModel) error {
 	if !conf.Conf.WriteScoreFlow {

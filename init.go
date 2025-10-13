@@ -9,6 +9,7 @@ import (
 
 	"github.com/zlyuancn/score/conf"
 	"github.com/zlyuancn/score/dao"
+	"github.com/zlyuancn/score/model"
 	"github.com/zlyuancn/score/score_flow"
 	"github.com/zlyuancn/score/score_type"
 	"github.com/zlyuancn/score/side_effect"
@@ -18,7 +19,7 @@ func init() {
 	config.RegistryApolloNeedParseNamespace(conf.ScoreConfigKey)
 
 	// 注册副作用
-	side_effect.RegistrySideEffect("score_flow", new(score_flow.ScoreChangeSideEffect))
+	side_effect.RegistrySideEffect(model.SideEffectType_ScoreChange, "score_change_flow", new(score_flow.ScoreChangeSideEffect))
 
 	// 持久内存-加载积分类型
 	score_type.StartLoopLoad()

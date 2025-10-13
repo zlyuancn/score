@@ -43,14 +43,26 @@ func TriggerMqHandle(ctx context.Context, payload string) error {
 }
 
 // 副作用
-type SideEffect = side_effect.SideEffect
+type (
+	// 副作用, 必须继承 BaseSideEffect
+	SideEffect = side_effect.SideEffect
+	// 副作用基类
+	BaseSideEffect = side_effect.BaseSideEffect
+	// 副作用类型
+	SideEffectType = model.SideEffectType
+)
+
+const (
+	// 副作用类型_积分变更
+	SideEffectType_ScoreChange = model.SideEffectType_ScoreChange
+)
 
 // 注册副作用, 重复注册同一个name会导致panic
-func RegistrySideEffect(name string, se SideEffect) {
-	side_effect.RegistrySideEffect(name, se)
+func RegistrySideEffect(t model.SideEffectType, name string, se SideEffect) {
+	side_effect.RegistrySideEffect(t, name, se)
 }
 
 // 取消注册副作用
-func UnRegistrySideEffect(name string) {
-	side_effect.UnRegistrySideEffect(name)
+func UnRegistrySideEffect(t model.SideEffectType, name string) {
+	side_effect.UnRegistrySideEffect(t, name)
 }
