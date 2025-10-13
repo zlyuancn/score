@@ -13,7 +13,7 @@ import (
 )
 
 // 写入积分流水
-func writeScoreFlow(ctx context.Context, st *model.ScoreType, flow *dao.ScoreFlowModel) error {
+func writeScoreFlow(ctx context.Context, flow *dao.ScoreFlowModel) error {
 	opName := model.GetOpName(model.OpType(flow.OpType))
 	err := dao.WriteScoreFlow(ctx, flow.Uid, flow)
 	if err != nil {
@@ -31,15 +31,16 @@ type ScoreChangeSideEffect struct {
 	side_effect.BaseSideEffect
 }
 
-func (ScoreChangeSideEffect) ScoreChange(ctx context.Context, st *model.ScoreType, flow *dao.ScoreFlowModel) error {
+func (ScoreChangeSideEffect) AfterScoreChange(ctx context.Context, st *model.ScoreType, data *model.SideEffectData, flow *dao.ScoreFlowModel) error {
 	if !conf.Conf.WriteScoreFlow {
 		return nil
 	}
 
 	// 写入流水
-	err := writeScoreFlow(ctx, st, flow)
+	err := writeScoreFlow(ctx, flow)
 	if err != nil {
-		logger.Error(ctx, "SideEffect.ScoreChange call writeScoreFlow fail.", zap.Any("flow", flow), zap.Error(err))
+		logger.Error(ctx, "SideEffect.AfterScoreChange call writeScoreFlow fail.", zap.Any("data", data), zap.Any("flow", flow), zap.Error(err))
+		return err
 	}
 	return nil
 }

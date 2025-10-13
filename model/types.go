@@ -35,32 +35,22 @@ const (
 	OrderStatus_InsufficientBalance OrderStatus = 2 // 余额不足
 )
 
-// 操作指令
-type OpCommand struct {
-	// 操作类型
-	Op OpType `json:"a"`
-	// 积分类型id
-	ScoreTypeID uint32 `json:"b"`
-	// 积分域
-	Domain string `json:"c"`
-	// 用户id
-	Uid string `json:"d"`
-	// 订单id
-	OrderID string `json:"e"`
-	// 积分值
-	Score int64 `json:"f"`
-	// 备注
-	Remark string `json:"g"`
-}
-
 // 副作用类型
 type SideEffectType int8
 
 const (
-	SideEffectType_ScoreChange SideEffectType = 1 // 积分变更
+	SideEffectType_BeforeScoreChange SideEffectType = iota + 1 // 积分变更前
+	SideEffectType_AfterScoreChange                            // 积分变更后
 )
 
-type SideEffect struct {
-	Type                 SideEffectType `json:"t"`
-	ScoreChangeOpCommand *OpCommand     `json:"a,omitempty"`
+// 副作用数据
+type SideEffectData struct {
+	Type        SideEffectType `json:"t"`   // 副作用类型
+	ScoreTypeID uint32         `json:"st"`  // 积分类型id
+	Domain      string         `json:"d"`   // 积分域
+	OrderID     string         `json:"oid"` // 订单id
+	Uid         string         `json:"uid"` // 用户id
+	Op          OpType         `json:"op"`  // 操作类型
+	Score       int64          `json:"v"`   // 积分值
+	Remark      string         `json:"ps"`  // 备注
 }

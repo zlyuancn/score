@@ -209,22 +209,39 @@ func (s scoreCli) beforeScoreOp(ctx context.Context, op model.OpType, scoreTypeI
 		return nil, err
 	}
 
-	// 准备副作用
-	data := &model.SideEffect{
-		Type: model.SideEffectType_ScoreChange,
-		ScoreChangeOpCommand: &model.OpCommand{
-			Op:          op,
-			ScoreTypeID: scoreTypeID,
-			Domain:      domain,
-			Uid:         uid,
-			OrderID:     orderID,
-			Score:       score,
-			Remark:      remark,
-		},
+	// 拦截
+	data := &model.SideEffectData{
+		Type:        model.SideEffectType_BeforeScoreChange,
+		ScoreTypeID: scoreTypeID,
+		Domain:      domain,
+		OrderID:     orderID,
+		Uid:         uid,
+		Op:          op,
+		Score:       score,
+		Remark:      remark,
 	}
-	err = side_effect.PrepareSideEffect(ctx, data)
+	err = side_effect.TriggerSideEffect(ctx, data,
+		func(ctx context.Context, seName string, se side_effect.SideEffect, st *model.ScoreType, data *model.SideEffectData) error {
+			return se.BeforeScoreChange(ctx, st, data)
+		})
 	if err != nil {
-		logger.Error(ctx, "beforeScoreOp call mq.TriggerSendMq fail.", zap.Any("cmd", data), zap.Error(err))
+		logger.Error(ctx, "beforeScoreOp call side_effect.TriggerSideEffect BeforeScoreChange fail.", zap.Any("data", data), zap.Error(err))
+		return nil, err
+	}
+
+	// 添加副作用守护程序
+	err = side_effect.AddSideEffectDaemon(ctx, &model.SideEffectData{
+		Type:        model.SideEffectType_AfterScoreChange,
+		ScoreTypeID: scoreTypeID,
+		Domain:      domain,
+		OrderID:     orderID,
+		Uid:         uid,
+		Op:          op,
+		Score:       score,
+		Remark:      remark,
+	})
+	if err != nil {
+		logger.Error(ctx, "beforeScoreOp call mq.TriggerSendMq fail.", zap.Any("data", data), zap.Error(err))
 		return nil, err
 	}
 
@@ -264,7 +281,20 @@ func (s scoreCli) afterScoreOp(ctx context.Context, op model.OpType, scoreTypeID
 	// 副作用
 	cloneCtx := utils.Ctx.CloneContext(ctx)
 	gpool.GetDefGPool().Go(func() error {
-		return side_effect.TriggerScoreChange(cloneCtx, st, flow)
+		data := &model.SideEffectData{
+			Type:        model.SideEffectType_AfterScoreChange,
+			ScoreTypeID: scoreTypeID,
+			Domain:      domain,
+			OrderID:     orderID,
+			Uid:         uid,
+			Op:          op,
+			Score:       score,
+			Remark:      remark,
+		}
+		return side_effect.TriggerSideEffect(cloneCtx, data,
+			func(ctx context.Context, seName string, se SideEffect, st *model.ScoreType, data *model.SideEffectData) error {
+				return se.AfterScoreChange(ctx, st, data, flow)
+			})
 	}, func(err error) {
 		if err != nil {
 			logger.Error(cloneCtx, "afterScoreOp call side_effect.TriggerScoreChange fail.", zap.Any("flow", flow), zap.Error(err))

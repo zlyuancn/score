@@ -53,8 +53,10 @@ type (
 )
 
 const (
-	// 副作用类型_积分变更
-	SideEffectType_ScoreChange = model.SideEffectType_ScoreChange
+	// 副作用类型_积分变更前, 如果回调返回err, 则积分变更不生效
+	SideEffectType_BeforeScoreChange = model.SideEffectType_BeforeScoreChange
+	// 副作用类型_积分变更后
+	SideEffectType_AfterScoreChange = model.SideEffectType_AfterScoreChange
 )
 
 // 注册副作用, 重复注册同一个name会导致panic
