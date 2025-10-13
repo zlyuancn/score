@@ -3,12 +3,13 @@ package conf
 const ScoreConfigKey = "score"
 
 const (
-	defScoreRedisName           = "score"
-	defScoreDataKeyFormat       = "score:<score_type_id>:<domain>:{<uid>}"
-	defTryEvalShaScoreOP        = true
-	defOrderStatusKeyFormat     = "score_os:<order_id>:{<uid>}"
-	defGenOrderSeqNoKeyFormat   = "score_sn:<score_type_id>:<score_type_id_shard>"
-	defGenOrderSeqNoKeyShardNum = 1000
+	defScoreRedisName                    = "score"
+	defScoreDataKeyFormat                = "score:<score_type_id>:<domain>:{<uid>}"
+	defTryEvalShaScoreOP                 = true
+	defOrderStatusKeyFormat              = "score_os:<order_id>:{<uid>}"
+	defGenOrderSeqNoKeyFormat            = "score_sn:<score_type_id>:<score_type_id_shard>"
+	defGenOrderSeqNoKeyShardNum          = 1000
+	defGenOrderSideEffectStatusKeyFormat = "score_oses:<order_id>:<side_effect_type>:<side_effect>:{<uid>}"
 
 	defScoreTypeRedisName         = "score"
 	defScoreTypeRedisKey          = "score:score_type"
@@ -20,12 +21,13 @@ const (
 )
 
 var Conf = Config{
-	ScoreRedisName:           defScoreRedisName,
-	ScoreDataKeyFormat:       defScoreDataKeyFormat,
-	TryEvalShaScoreOP:        defTryEvalShaScoreOP,
-	OrderStatusKeyFormat:     defOrderStatusKeyFormat,
-	GenOrderSeqNoKeyFormat:   defGenOrderSeqNoKeyFormat,
-	GenOrderSeqNoKeyShardNum: defGenOrderSeqNoKeyShardNum,
+	ScoreRedisName:                    defScoreRedisName,
+	ScoreDataKeyFormat:                defScoreDataKeyFormat,
+	TryEvalShaScoreOP:                 defTryEvalShaScoreOP,
+	OrderStatusKeyFormat:              defOrderStatusKeyFormat,
+	GenOrderSeqNoKeyFormat:            defGenOrderSeqNoKeyFormat,
+	GenOrderSeqNoKeyShardNum:          defGenOrderSeqNoKeyShardNum,
+	GenOrderSideEffectStatusKeyFormat: defGenOrderSideEffectStatusKeyFormat,
 
 	ScoreTypeRedisName:         defScoreTypeRedisName,
 	ScoreTypeRedisKey:          defScoreTypeRedisKey,
@@ -38,12 +40,13 @@ var Conf = Config{
 }
 
 type Config struct {
-	ScoreRedisName           string // 积分数据redis组件名
-	ScoreDataKeyFormat       string // 积分数据key格式化字符串
-	TryEvalShaScoreOP        bool   // 尝试通过 redis EVALSHA 命令操作积分
-	OrderStatusKeyFormat     string // 订单状态key格式化字符串
-	GenOrderSeqNoKeyFormat   string // 订单号生成器key格式化字符串
-	GenOrderSeqNoKeyShardNum int32  // 生成订单序列号key的分片数
+	ScoreRedisName                    string // 积分数据redis组件名
+	ScoreDataKeyFormat                string // 积分数据key格式化字符串
+	TryEvalShaScoreOP                 bool   // 尝试通过 redis EVALSHA 命令操作积分
+	OrderStatusKeyFormat              string // 订单状态key格式化字符串
+	GenOrderSeqNoKeyFormat            string // 订单号生成器key格式化字符串
+	GenOrderSeqNoKeyShardNum          int32  // 生成订单序列号key的分片数
+	GenOrderSideEffectStatusKeyFormat string // 生成订单副作用key格式化字符串
 
 	ScoreTypeRedisName         string // 积分类型redis组件名
 	ScoreTypeRedisKey          string // 积分类型从redis加载的 hash map key名
@@ -70,6 +73,9 @@ func (conf *Config) Check() {
 	}
 	if conf.GenOrderSeqNoKeyShardNum < 1 {
 		conf.GenOrderSeqNoKeyShardNum = defGenOrderSeqNoKeyShardNum
+	}
+	if conf.GenOrderSideEffectStatusKeyFormat == "" {
+		conf.GenOrderSideEffectStatusKeyFormat = defGenOrderSideEffectStatusKeyFormat
 	}
 
 	if conf.ScoreTypeRedisName == "" && conf.ScoreTypeSqlxName == "" {

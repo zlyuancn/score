@@ -224,7 +224,7 @@ func (s scoreCli) beforeScoreOp(ctx context.Context, op model.OpType, scoreTypeI
 	}
 	err = side_effect.PrepareSideEffect(ctx, data)
 	if err != nil {
-		logger.Error(ctx, "beforeScoreOp call mq.TriggerSendMq fail", zap.Any("cmd", data), zap.Error(err))
+		logger.Error(ctx, "beforeScoreOp call mq.TriggerSendMq fail.", zap.Any("cmd", data), zap.Error(err))
 		return nil, err
 	}
 
@@ -267,7 +267,7 @@ func (s scoreCli) afterScoreOp(ctx context.Context, op model.OpType, scoreTypeID
 		return side_effect.TriggerScoreChange(cloneCtx, st, flow)
 	}, func(err error) {
 		if err != nil {
-			logger.Error(cloneCtx, "afterScoreOp call side_effect.TriggerScoreChange fail", zap.Any("flow", flow), zap.Error(err))
+			logger.Error(cloneCtx, "afterScoreOp call side_effect.TriggerScoreChange fail.", zap.Any("flow", flow), zap.Error(err))
 		}
 	})
 

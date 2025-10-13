@@ -30,6 +30,8 @@ const (
 	templateString_ScoreTypeID      = "<score_type_id>"
 	templateString_OrderID          = "<order_id>"
 	templateString_ScoreTypeIDShard = "<score_type_id_shard>"
+	templateString_SideEffect       = "<side_effect>"
+	templateString_SideEffectType   = "<side_effect_type>"
 )
 
 // status 在redis写入的数据为  操作类型_操作状态_旧值_变更值_新的值
@@ -121,7 +123,7 @@ var ErrOrderNotFound = errors.New("order not found")
 // 生成积分数据key
 func genScoreDataKey(scoreTypeID uint32, domain string, uid string) string {
 	text := conf.Conf.ScoreDataKeyFormat
-	text = strings.ReplaceAll(text, templateString_ScoreTypeID, cast.ToString(scoreTypeID))
+	text = strings.ReplaceAll(text, templateString_ScoreTypeID, strconv.FormatInt(int64(scoreTypeID), 10))
 	text = strings.ReplaceAll(text, templateString_Domain, domain)
 	text = strings.ReplaceAll(text, templateString_Uid, uid)
 	return text
@@ -130,21 +132,26 @@ func genScoreDataKey(scoreTypeID uint32, domain string, uid string) string {
 // 生成订单状态key
 func genOrderStatusKey(uid string, orderID string) string {
 	text := conf.Conf.OrderStatusKeyFormat
-	text = strings.ReplaceAll(text, templateString_Uid, cast.ToString(uid))
+	text = strings.ReplaceAll(text, templateString_Uid, uid)
 	text = strings.ReplaceAll(text, templateString_OrderID, orderID)
 	return text
 }
 
-// 生成订单流水落库状态key
-func genOrderFlowStatusKey(uid string, orderID string) string {
-	return genOrderStatusKey(uid, orderID) + ":flow"
+// 生成订单副作用状态key
+func genOrderSideEffectStatusKey(uid string, orderID string, sideEffectName string, sideEffectType int) string {
+	text := conf.Conf.GenOrderSideEffectStatusKeyFormat
+	text = strings.ReplaceAll(text, templateString_Uid, uid)
+	text = strings.ReplaceAll(text, templateString_OrderID, orderID)
+	text = strings.ReplaceAll(text, templateString_SideEffect, sideEffectName)
+	text = strings.ReplaceAll(text, templateString_SideEffectType, strconv.FormatInt(int64(sideEffectType), 10))
+	return text
 }
 
 // 生成订单序列号生成器key
 func genGenOrderSeqNoKey(scoreTypeID uint32, scoreTypeIdShard int32) string {
 	text := conf.Conf.GenOrderSeqNoKeyFormat
-	text = strings.ReplaceAll(text, templateString_ScoreTypeID, cast.ToString(scoreTypeID))
-	text = strings.ReplaceAll(text, templateString_ScoreTypeIDShard, cast.ToString(scoreTypeIdShard))
+	text = strings.ReplaceAll(text, templateString_ScoreTypeID, strconv.FormatInt(int64(scoreTypeID), 10))
+	text = strings.ReplaceAll(text, templateString_ScoreTypeIDShard, strconv.FormatInt(int64(scoreTypeIdShard), 10))
 	return text
 }
 
@@ -238,9 +245,9 @@ func GetOrderStatus(ctx context.Context, orderID string, uid string) (*model.Ord
 	return parseStatus(statusResult + "_0")
 }
 
-// 获取订单流水落库状态
-func GetOrderFlowStatus(ctx context.Context, orderID string, uid string) (bool, error) {
-	key := genOrderFlowStatusKey(uid, orderID)
+// 获取订单副作用状态
+func GetOrderSideEffectStatus(ctx context.Context, orderID string, uid string, sideEffectName string, sideEffectType int) (bool, error) {
+	key := genOrderSideEffectStatusKey(uid, orderID, sideEffectName, sideEffectType)
 	v, err := client.GetScoreRedisClient().Get(ctx, key).Result()
 	if err == redis.Nil {
 		return false, nil
@@ -251,9 +258,9 @@ func GetOrderFlowStatus(ctx context.Context, orderID string, uid string) (bool, 
 	return v == "1", err
 }
 
-// 标记订单流水状态已落库
-func MarkOrderFlowStatusOk(ctx context.Context, orderID string, uid string, statusExpireSec int64) error {
-	key := genOrderFlowStatusKey(uid, orderID)
+// 标记订单副作用状态已完成
+func MarkOrderSideEffectStatusOk(ctx context.Context, orderID string, uid string, sideEffectName string, sideEffectType int, statusExpireSec int64) error {
+	key := genOrderSideEffectStatusKey(uid, orderID, sideEffectName, sideEffectType)
 	err := client.GetScoreRedisClient().Set(ctx, key, "1", time.Duration(statusExpireSec)*time.Second).Err()
 	return err
 }

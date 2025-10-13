@@ -80,11 +80,12 @@ score 是一个积分系统, 可用于会员积分/系统内货币等.
 
 如果你使用了分布式redis系统, 请根据你使用的分布式redis系统的hashtag来调整key算法以将同一个用户id的数据分配到同一个分片中, 否则导致功能异常. 由于底层对同用户的操作均采用lua脚本, 要求操作的多个key必须在同一个节点.
 
-| 描述         | 配置key                | 默认key格式化字符串                                | 数据类型 | 有效期       | 支持替换的字符                            |
-| ------------ | ---------------------- | -------------------------------------------------- | -------- | ------------ | ----------------------------------------- |
-| 积分数据     | ScoreDataKeyFormat     | score:\<score_type_id\>:\<domain\>:{\<uid\>}       | string   | 永久         | `<uid>`/`<domain>`/`<score_type_id>`      |
-| 订单状态     | OrderStatusKeyFormat   | score_os:\<order_id\>:{\<uid\>}                    | string   | 30天(可配置) | `<uid>`/`<order_id>`                      |
-| 订单号生成器 | GenOrderSeqNoKeyFormat | score_sn:\<score_type_id\>:\<score_type_id_shard\> | string   | 永久         | `<score_type_id>`/`<score_type_id_shard>` |
+| 描述           | 配置key                           | 默认key格式化字符串                                                    | 数据类型 | 有效期         | 支持替换的字符                                        |
+| -------------- | --------------------------------- | ---------------------------------------------------------------------- | -------- | -------------- | ----------------------------------------------------- |
+| 积分数据       | ScoreDataKeyFormat                | score:\<score_type_id\>:\<domain\>:{\<uid\>}                           | string   | 永久           | `<uid>`/`<domain>`/`<score_type_id>`                  |
+| 订单状态       | OrderStatusKeyFormat              | score_os:\<order_id\>:{\<uid\>}                                        | string   | 30天(可配置)   | `<uid>`/`<order_id>`                                  |
+| 订单号生成器   | GenOrderSeqNoKeyFormat            | score_sn:\<score_type_id\>:\<score_type_id_shard\>                     | string   | 永久           | `<score_type_id>`/`<score_type_id_shard>`             |
+| 订单副作用状态 | GenOrderSideEffectStatusKeyFormat | score_oses:\<order_id\>:\<side_effect_type\>:\<side_effect\>:{\<uid\>} | string   | 与订单状态相同 | `<uid>`/`<order_id>`/`side_effect_type`/`side_effect` |
 
 其中订单状态key中加上`{<uid>}`的原因是在分布式redis系统中lua脚本要操作的这些key(积分数据/订单状态等)都要在同一个节点中, 而用户id的区分度较大, 能方便分散到不同节点避免单节点负载过高.
 
@@ -97,6 +98,8 @@ key中的字符替换说明如下
 | \<score_type_id\>       | 积分类型id     |
 | \<order_id\>            | 订单id         |
 | \<score_type_id_shard\> | 积分类型id分片 |
+| \<side_effect_type\>    | 副作用类型     |
+| \<side_effect\>         | 副作用名       |
 
 ## 注册积分类型
 
@@ -209,7 +212,7 @@ orderData, orderStatus, _ := sdk.GetOrderStatus(ctx, orderID)
 
 score系统不会删除历史流水记录, 如果有这个需求, 需要业务层自行删除. 对于一般业务来说流水数据是重要的资产, 如果真的是储存满了且不想扩容, 可以写脚本删除历史数据, 没必要做定时删除任务.
 
-流水的写入可能会失败, 可以通过 `score.RegistryMqTool` 接入mq, 要求mq必须延迟消费. 当mq消费时调用`score.TriggerMqHandle`触发后置补偿.
+流水的写入可能会失败, 可以通过 `score.RegistryMqTool` 接入mq, 要求mq必须延迟10秒以上进行消费. 当mq消费时调用`score.TriggerMqHandle`重新触发写入流水副作用.
 
 ## 积分数据
 
@@ -286,9 +289,9 @@ b->>a: 订单状态
 
 # 副作用
 
-使用 `score.RegistrySideEffect` 注册副作用, 当 `score` 内部有一些变化时, 可以通过这个工具处理副作用. 比如记录一些日志流水. 如果要求副作用是尽量成功的, 则需要使用 `score.RegistryMqTool` 注册一个mq工具, 会通过mq进行多次重试.
+使用 `score.RegistrySideEffect` 注册副作用, 当 `score` 内部有一些变化时, 可以通过这个工具处理副作用. 比如记录一些日志流水. 如果要求副作用是尽量成功的, 则需要使用 `score.RegistryMqTool` 注册一个mq工具, 副作用处理失败会通过mq进行多次重试.
 
-这个工具的副作用可能会调用多次, 业务使用者在处理副作用时应该保证其幂等性(可重入)
+副作用可能会调用多次, 业务使用者在处理副作用时应该保证其幂等性(可重入)
 
 ---
 
