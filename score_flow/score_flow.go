@@ -3,7 +3,7 @@ package score_flow
 import (
 	"context"
 
-	"github.com/zly-app/zapp/logger"
+	"github.com/zly-app/zapp/log"
 	"go.uber.org/zap"
 
 	"github.com/zlyuancn/score/conf"
@@ -17,7 +17,7 @@ func writeScoreFlow(ctx context.Context, flow *dao.ScoreFlowModel) error {
 	opName := model.GetOpName(model.OpType(flow.OpType))
 	err := dao.WriteScoreFlow(ctx, flow.Uid, flow)
 	if err != nil {
-		logger.Error(ctx, "afterScoreOp dao.writeScoreFlow fail.",
+		log.Error(ctx, "afterScoreOp dao.writeScoreFlow fail.",
 			zap.String("opName", opName),
 			zap.Any("flow", flow),
 			zap.Error(err),
@@ -39,7 +39,7 @@ func (ScoreChangeSideEffect) AfterScoreChange(ctx context.Context, st *model.Sco
 	// 写入流水
 	err := writeScoreFlow(ctx, flow)
 	if err != nil {
-		logger.Error(ctx, "SideEffect.AfterScoreChange call writeScoreFlow fail.", zap.Any("data", data), zap.Any("flow", flow), zap.Error(err))
+		log.Error(ctx, "SideEffect.AfterScoreChange call writeScoreFlow fail.", zap.Any("data", data), zap.Any("flow", flow), zap.Error(err))
 		return err
 	}
 	return nil

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/zly-app/utils/loopload"
-	"github.com/zly-app/zapp/logger"
+	"github.com/zly-app/zapp/log"
 	"go.uber.org/zap"
 
 	"github.com/zlyuancn/score/conf"
@@ -84,7 +84,7 @@ func StartLoopLoad() {
 func GetScoreType(ctx context.Context, scoreTypeID uint32) (*model.ScoreType, error) {
 	st, err := getScoreType(ctx, scoreTypeID, false)
 	if err != nil {
-		logger.Error(ctx, "GetScoreType err",
+		log.Error(ctx, "GetScoreType err",
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.Error(err),
 		)
@@ -96,7 +96,7 @@ func GetScoreType(ctx context.Context, scoreTypeID uint32) (*model.ScoreType, er
 func ForceGetScoreType(ctx context.Context, scoreTypeID uint32) (*model.ScoreType, error) {
 	st, err := getScoreType(ctx, scoreTypeID, true)
 	if err != nil {
-		logger.Error(ctx, "ForceGetScoreType err",
+		log.Error(ctx, "ForceGetScoreType err",
 			zap.Uint32("scoreTypeID", scoreTypeID),
 			zap.Error(err),
 		)

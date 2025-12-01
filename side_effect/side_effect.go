@@ -3,7 +3,7 @@ package side_effect
 import (
 	"context"
 
-	"github.com/zly-app/zapp/logger"
+	"github.com/zly-app/zapp/log"
 	"go.uber.org/zap"
 
 	"github.com/zlyuancn/score/dao"
@@ -48,7 +48,7 @@ func RegistrySideEffect(t model.SideEffectType, name string, se SideEffect) {
 	l := len(seList)
 	seList[name] = se
 	if l == len(seList) {
-		logger.Panic("RegistrySideEffect repetition name", zap.Int("SideTypeType", int(t)), zap.String("Name", name))
+		log.Panic("RegistrySideEffect repetition name", zap.Int("SideTypeType", int(t)), zap.String("Name", name))
 	}
 }
 

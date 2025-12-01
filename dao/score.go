@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/spf13/cast"
-	"github.com/zly-app/zapp/logger"
+	"github.com/zly-app/zapp/log"
 	"github.com/zly-app/zapp/pkg/utils"
 	"github.com/zlyuancn/lcgr"
 	"go.uber.org/zap"
@@ -158,7 +158,11 @@ func genGenOrderSeqNoKey(scoreTypeID uint32, scoreTypeIdShard int32) string {
 // 获取积分
 func GetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string) (int64, error) {
 	key := genScoreDataKey(scoreTypeID, domain, uid)
-	v, err := client.GetScoreRedisClient().Get(ctx, key).Result()
+	rdb, err := client.GetScoreRedisClient()
+	if err != nil {
+		return 0, err
+	}
+	v, err := rdb.Get(ctx, key).Result()
 	if err == redis.Nil {
 		return 0, nil
 	}
@@ -169,7 +173,11 @@ func GetScore(ctx context.Context, scoreTypeID uint32, domain string, uid string
 func GenOrderSeqNo(ctx context.Context, scoreTypeID uint32, domain string, uid string) (string, error) {
 	shard := rand.Int31n(conf.Conf.GenOrderSeqNoKeyShardNum)
 	key := genGenOrderSeqNoKey(scoreTypeID, shard)
-	no, err := client.GetScoreRedisClient().IncrBy(ctx, key, 1).Uint64()
+	rdb, err := client.GetScoreRedisClient()
+	if err != nil {
+		return "", err
+	}
+	no, err := rdb.IncrBy(ctx, key, 1).Uint64()
 	if err != nil {
 		return "", err
 	}
@@ -195,15 +203,20 @@ func AddScore(ctx context.Context, orderID string, scoreTypeID uint32, domain st
 	scoreDataKey := genScoreDataKey(scoreTypeID, domain, uid)
 	orderStatusKey := genOrderStatusKey(uid, orderID)
 
+	rdb, err := client.GetScoreRedisClient()
+	if err != nil {
+		return nil, 0, err
+	}
+
 	if addScoreLuaSha1 != "" {
-		statusResult, err := client.GetScoreRedisClient().EvalSha(ctx, addScoreLuaSha1, []string{scoreDataKey, orderStatusKey}, score, statusExpireSec).Result()
+		statusResult, err := rdb.EvalSha(ctx, addScoreLuaSha1, []string{scoreDataKey, orderStatusKey}, score, statusExpireSec).Result()
 		if err != nil {
 			return nil, 0, err
 		}
 		return parseStatus(cast.ToString(statusResult))
 	}
 
-	statusResult, err := client.GetScoreRedisClient().Eval(ctx, addScoreLua, []string{scoreDataKey, orderStatusKey}, score, statusExpireSec).Result()
+	statusResult, err := rdb.Eval(ctx, addScoreLua, []string{scoreDataKey, orderStatusKey}, score, statusExpireSec).Result()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -216,15 +229,20 @@ func ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain 
 	scoreDataKey := genScoreDataKey(scoreTypeID, domain, uid)
 	orderStatusKey := genOrderStatusKey(uid, orderID)
 
+	rdb, err := client.GetScoreRedisClient()
+	if err != nil {
+		return nil, 0, err
+	}
+
 	if resetScoreLuaSha1 != "" {
-		statusResult, err := client.GetScoreRedisClient().EvalSha(ctx, resetScoreLuaSha1, []string{scoreDataKey, orderStatusKey}, resetScore, statusExpireSec).Result()
+		statusResult, err := rdb.EvalSha(ctx, resetScoreLuaSha1, []string{scoreDataKey, orderStatusKey}, resetScore, statusExpireSec).Result()
 		if err != nil {
 			return nil, 0, err
 		}
 		return parseStatus(cast.ToString(statusResult))
 	}
 
-	statusResult, err := client.GetScoreRedisClient().Eval(ctx, resetScoreLua, []string{scoreDataKey, orderStatusKey}, resetScore, statusExpireSec).Result()
+	statusResult, err := rdb.Eval(ctx, resetScoreLua, []string{scoreDataKey, orderStatusKey}, resetScore, statusExpireSec).Result()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -235,7 +253,11 @@ func ResetScore(ctx context.Context, orderID string, scoreTypeID uint32, domain 
 // 获取订单状态
 func GetOrderStatus(ctx context.Context, orderID string, uid string) (*model.OrderData, model.OrderStatus, error) {
 	orderStatusKey := genOrderStatusKey(uid, orderID)
-	statusResult, err := client.GetScoreRedisClient().Get(ctx, orderStatusKey).Result()
+	rdb, err := client.GetScoreRedisClient()
+	if err != nil {
+		return nil, 0, err
+	}
+	statusResult, err := rdb.Get(ctx, orderStatusKey).Result()
 	if err == redis.Nil {
 		return nil, 0, ErrOrderNotFound
 	}
@@ -248,7 +270,11 @@ func GetOrderStatus(ctx context.Context, orderID string, uid string) (*model.Ord
 // 获取订单副作用状态
 func GetOrderSideEffectStatus(ctx context.Context, orderID string, uid string, sideEffectName string, sideEffectType int) (bool, error) {
 	key := genOrderSideEffectStatusKey(uid, orderID, sideEffectName, sideEffectType)
-	v, err := client.GetScoreRedisClient().Get(ctx, key).Result()
+	rdb, err := client.GetScoreRedisClient()
+	if err != nil {
+		return false, err
+	}
+	v, err := rdb.Get(ctx, key).Result()
 	if err == redis.Nil {
 		return false, nil
 	}
@@ -261,7 +287,11 @@ func GetOrderSideEffectStatus(ctx context.Context, orderID string, uid string, s
 // 标记订单副作用状态已完成
 func MarkOrderSideEffectStatusOk(ctx context.Context, orderID string, uid string, sideEffectName string, sideEffectType int, statusExpireSec int64) error {
 	key := genOrderSideEffectStatusKey(uid, orderID, sideEffectName, sideEffectType)
-	err := client.GetScoreRedisClient().Set(ctx, key, "1", time.Duration(statusExpireSec)*time.Second).Err()
+	rdb, err := client.GetScoreRedisClient()
+	if err != nil {
+		return err
+	}
+	err = rdb.Set(ctx, key, "1", time.Duration(statusExpireSec)*time.Second).Err()
 	return err
 }
 
@@ -284,27 +314,33 @@ func parseStatus(statusValue string) (*model.OrderData, model.OrderStatus, error
 
 // 尝试注入脚本
 func TryInjectScript() {
-	ctx := utils.Otel.CtxStart(context.Background(), "TryInjectScript", utils.OtelSpanKey("TryEvalShaScoreOP").Bool(conf.Conf.TryEvalShaScoreOP))
-	defer utils.Otel.CtxEnd(ctx)
+	ctx := utils.Trace.CtxStart(context.Background(), "TryInjectScript", utils.OtelSpanKey("TryEvalShaScoreOP").Bool(conf.Conf.TryEvalShaScoreOP))
+	defer utils.Trace.CtxEnd(ctx)
 
 	if !conf.Conf.TryEvalShaScoreOP {
-		logger.Warn(ctx, "disable TryInjectScript")
+		log.Warn(ctx, "disable TryInjectScript")
 		return
 	}
 
-	sha1, err := client.GetScoreRedisClient().ScriptLoad(ctx, addScoreLua).Result()
+	rdb, err := client.GetScoreRedisClient()
 	if err != nil {
-		logger.Error(ctx, "TryInjectScript addScoreLua err", zap.Error(err))
+		log.Error(ctx, "TryInjectScript GetScoreRedisClient err", zap.Error(err))
+		return
+	}
+
+	sha1, err := rdb.ScriptLoad(ctx, addScoreLua).Result()
+	if err != nil {
+		log.Error(ctx, "TryInjectScript addScoreLua err", zap.Error(err))
 		return
 	}
 	addScoreLuaSha1 = sha1
 
-	sha1, err = client.GetScoreRedisClient().ScriptLoad(ctx, resetScoreLua).Result()
+	sha1, err = rdb.ScriptLoad(ctx, resetScoreLua).Result()
 	if err != nil {
-		logger.Error(ctx, "TryInjectScript resetScoreLua err", zap.Error(err))
+		log.Error(ctx, "TryInjectScript resetScoreLua err", zap.Error(err))
 		return
 	}
 	resetScoreLuaSha1 = sha1
 
-	logger.Info(ctx, "TryInjectScript ok")
+	log.Info(ctx, "TryInjectScript ok")
 }

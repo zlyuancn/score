@@ -3,7 +3,7 @@ package side_effect
 import (
 	"context"
 
-	"github.com/zly-app/zapp/logger"
+	"github.com/zly-app/zapp/log"
 	"go.uber.org/zap"
 
 	"github.com/zlyuancn/score/dao"
@@ -14,12 +14,12 @@ func afterScoreChangeHandle(ctx context.Context, st *model.ScoreType, data *mode
 	// 获取状态
 	orderData, orderStatus, err := dao.GetOrderStatus(ctx, data.OrderID, data.Uid)
 	if err == dao.ErrOrderNotFound {
-		logger.Warn(ctx, "afterScoreChangeHandle call GetOrderStatus fail.", zap.Any("data", data), zap.Error(err))
+		log.Warn(ctx, "afterScoreChangeHandle call GetOrderStatus fail.", zap.Any("data", data), zap.Error(err))
 		// 订单不存在无需重试
 		return nil
 	}
 	if err != nil {
-		logger.Error(ctx, "afterScoreChangeHandle call GetOrderStatus err", zap.Any("data", data), zap.Error(err))
+		log.Error(ctx, "afterScoreChangeHandle call GetOrderStatus err", zap.Any("data", data), zap.Error(err))
 		return err
 	}
 
@@ -43,7 +43,7 @@ func afterScoreChangeHandle(ctx context.Context, st *model.ScoreType, data *mode
 			return se.AfterScoreChange(ctx, st, data, flow)
 		})
 	if err != nil {
-		logger.Error(ctx, "afterScoreChangeHandle call side_effect.TriggerScoreChange fail.", zap.Any("flow", flow), zap.Error(err))
+		log.Error(ctx, "afterScoreChangeHandle call side_effect.TriggerScoreChange fail.", zap.Any("flow", flow), zap.Error(err))
 		return err
 	}
 	return nil

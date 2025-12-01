@@ -8,7 +8,7 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/zly-app/zapp/component/gpool"
 	"github.com/zly-app/zapp/filter"
-	"github.com/zly-app/zapp/logger"
+	"github.com/zly-app/zapp/log"
 	"github.com/zly-app/zapp/pkg/utils"
 	"go.uber.org/zap"
 
@@ -28,7 +28,7 @@ func compensationSideEffect(ctx context.Context, payload string) error {
 	data := &model.SideEffectData{}
 	err := sonic.UnmarshalString(payload, data)
 	if err != nil {
-		logger.Error(ctx, "compensationSideEffect call UnmarshalString data fail.", zap.Any("payload", payload), zap.Error(err))
+		log.Error(ctx, "compensationSideEffect call UnmarshalString data fail.", zap.Any("payload", payload), zap.Error(err))
 		return nil
 	}
 
@@ -49,13 +49,13 @@ func compensationSideEffect(ctx context.Context, payload string) error {
 func AddSideEffectDaemon(ctx context.Context, data *model.SideEffectData) error {
 	payload, err := sonic.MarshalString(data)
 	if err != nil {
-		logger.Error(ctx, "AddSideEffectDaemon call MarshalString data fail.", zap.Any("data", data), zap.Error(err))
+		log.Error(ctx, "AddSideEffectDaemon call MarshalString data fail.", zap.Any("data", data), zap.Error(err))
 		return err
 	}
 
 	err = mqTool.Send(ctx, payload)
 	if err != nil {
-		logger.Error(ctx, "AddSideEffectDaemon call mqTool.Send fail.", zap.String("payload", payload), zap.Error(err))
+		log.Error(ctx, "AddSideEffectDaemon call mqTool.Send fail.", zap.String("payload", payload), zap.Error(err))
 		return err
 	}
 	return nil
@@ -78,7 +78,7 @@ func TriggerSideEffect(ctx context.Context, data *model.SideEffectData, fn SideE
 	// 检查积分类型
 	st, err := score_type.GetScoreType(ctx, data.ScoreTypeID)
 	if err != nil {
-		logger.Error(ctx, "TriggerSideEffect call GetScoreType fail.", zap.Int("SideNameType", int(data.Type)), zap.Any("data", data), zap.Error(err))
+		log.Error(ctx, "TriggerSideEffect call GetScoreType fail.", zap.Int("SideNameType", int(data.Type)), zap.Any("data", data), zap.Error(err))
 		return err
 	}
 
@@ -87,8 +87,8 @@ func TriggerSideEffect(ctx context.Context, data *model.SideEffectData, fn SideE
 		return nil
 	}
 
-	ctx = utils.Otel.CtxStart(ctx, "TriggerSideEffect")
-	defer utils.Otel.CtxEnd(ctx)
+	ctx = utils.Trace.CtxStart(ctx, "TriggerSideEffect")
+	defer utils.Trace.CtxEnd(ctx)
 
 	fns := make([]func() error, 0, len(seList))
 	for k, v := range seList {
@@ -97,7 +97,7 @@ func TriggerSideEffect(ctx context.Context, data *model.SideEffectData, fn SideE
 			// 获取订单副作用状态
 			ok, err := dao.GetOrderSideEffectStatus(ctx, data.OrderID, data.Uid, name, int(data.Type))
 			if err != nil {
-				logger.Error(ctx, "TriggerSideEffect call GetOrderSideEffectStatus fail.", zap.Int("SideNameType", int(data.Type)), zap.String("SideEffectName", name), zap.Any("data", data), zap.Error(err))
+				log.Error(ctx, "TriggerSideEffect call GetOrderSideEffectStatus fail.", zap.Int("SideNameType", int(data.Type)), zap.String("SideEffectName", name), zap.Any("data", data), zap.Error(err))
 				return err
 			}
 			if ok {
@@ -114,14 +114,14 @@ func TriggerSideEffect(ctx context.Context, data *model.SideEffectData, fn SideE
 				return nil, err
 			})
 			if err != nil {
-				logger.Error(ctx, "TriggerSideEffect call fail.", zap.Int("SideNameType", int(data.Type)), zap.String("SideEffectName", name), zap.Any("data", data), zap.Error(err))
+				log.Error(ctx, "TriggerSideEffect call fail.", zap.Int("SideNameType", int(data.Type)), zap.String("SideEffectName", name), zap.Any("data", data), zap.Error(err))
 				return err
 			}
 
 			// 标记订单副作用状态已完成
 			err = dao.MarkOrderSideEffectStatusOk(ctx, data.OrderID, data.Uid, name, int(data.Type), int64(st.OrderStatusExpireDay)*86400)
 			if err != nil {
-				logger.Error(ctx, "TriggerSideEffect dao.MarkOrderFlowStatusOk fail.", zap.Int("SideNameType", int(data.Type)), zap.String("SideEffectName", name), zap.Any("data", data), zap.Error(err))
+				log.Error(ctx, "TriggerSideEffect dao.MarkOrderFlowStatusOk fail.", zap.Int("SideNameType", int(data.Type)), zap.String("SideEffectName", name), zap.Any("data", data), zap.Error(err))
 				// 这里不影响主进程
 			}
 
@@ -131,7 +131,7 @@ func TriggerSideEffect(ctx context.Context, data *model.SideEffectData, fn SideE
 
 	err = gpool.GetDefGPool().GoAndWait(fns...)
 	if err != nil {
-		logger.Error(ctx, "TriggerSideEffect fail.", zap.Int("SideNameType", int(data.Type)), zap.Any("data", data), zap.Error(err))
+		log.Error(ctx, "TriggerSideEffect fail.", zap.Int("SideNameType", int(data.Type)), zap.Any("data", data), zap.Error(err))
 		return err
 	}
 	return nil

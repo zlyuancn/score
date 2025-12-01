@@ -6,7 +6,7 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/spf13/cast"
-	"github.com/zly-app/zapp/logger"
+	"github.com/zly-app/zapp/log"
 	"go.uber.org/zap"
 
 	"github.com/zlyuancn/score/client"
@@ -24,7 +24,12 @@ type ScoreTypeRedisModel struct {
 
 // 获取所有积分类型
 func GetAllScoreTypeByRedis(ctx context.Context) ([]*ScoreTypeRedisModel, error) {
-	v, err := client.GetScoreTypeRedisClient().HGetAll(ctx, conf.Conf.ScoreTypeRedisKey).Result()
+	rdb, err := client.GetScoreTypeRedisClient()
+	if err != nil {
+		return nil, err
+	}
+
+	v, err := rdb.HGetAll(ctx, conf.Conf.ScoreTypeRedisKey).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -33,13 +38,13 @@ func GetAllScoreTypeByRedis(ctx context.Context) ([]*ScoreTypeRedisModel, error)
 	for k, text := range v {
 		id, err := cast.ToUint32E(k)
 		if err != nil {
-			logger.Error(ctx, "can't parse score type by redis hash map field", zap.String("field", k), zap.String("value", text), zap.Error(err))
+			log.Error(ctx, "can't parse score type by redis hash map field", zap.String("field", k), zap.String("value", text), zap.Error(err))
 			return nil, err
 		}
 		s := ScoreTypeRedisModel{}
 		err = sonic.UnmarshalString(text, &s)
 		if err != nil {
-			logger.Error(ctx, "can't parse score type conf by redis hash map value", zap.String("field", k), zap.String("value", text), zap.Error(err))
+			log.Error(ctx, "can't parse score type conf by redis hash map value", zap.String("field", k), zap.String("value", text), zap.Error(err))
 			return nil, err
 		}
 		s.ID = id

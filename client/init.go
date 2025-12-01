@@ -8,7 +8,7 @@ import (
 )
 
 // 获取积分 redis 客户端
-func GetScoreRedisClient() redis.UniversalClient {
+func GetScoreRedisClient() (redis.UniversalClient, error) {
 	return redis.GetClient(conf.Conf.ScoreRedisName)
 }
 
@@ -18,7 +18,7 @@ func GetScoreTypeSqlxClient() sqlx.Client {
 }
 
 // 获取积分类型 redis 客户端
-func GetScoreTypeRedisClient() redis.UniversalClient {
+func GetScoreTypeRedisClient() (redis.UniversalClient, error) {
 	return redis.GetClient(conf.Conf.ScoreTypeRedisName)
 }
 
