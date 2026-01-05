@@ -10,15 +10,16 @@ import (
 	"github.com/zly-app/zapp/filter"
 	"github.com/zly-app/zapp/log"
 	"github.com/zly-app/zapp/pkg/utils"
+	"github.com/zlyuancn/score/dao"
 	"go.uber.org/zap"
 
-	"github.com/zlyuancn/score/dao"
 	"github.com/zlyuancn/score/model"
 	"github.com/zlyuancn/score/score_type"
 )
 
-var sideEffectTypeResolver = map[model.SideEffectType]func(ctx context.Context, st *model.ScoreType, data *model.SideEffectData) error{
-	model.SideEffectType_AfterScoreChange: afterScoreChangeHandle,
+var sideEffectTypeProcessResolver = map[model.SideEffectType]func(ctx context.Context, st *model.ScoreType, data *model.SideEffectData) error{
+	model.SideEffectType_BeforeScoreChange: beforeScoreChange,
+	model.SideEffectType_AfterScoreChange:  afterScoreChangeHandle,
 }
 
 type SideEffectProcess func(ctx context.Context, seName string, se SideEffect, st *model.ScoreType, data *model.SideEffectData) error
@@ -38,27 +39,11 @@ func compensationSideEffect(ctx context.Context, payload string) error {
 		return err
 	}
 
-	r, ok := sideEffectTypeResolver[data.Type]
+	r, ok := sideEffectTypeProcessResolver[data.Type]
 	if ok {
 		return r(ctx, st, data)
 	}
 	return fmt.Errorf("compensationSideEffect got not supported type=%d", data.Type)
-}
-
-// 为副作用添加一个守护程序, 当副作用处理失败后会自动重试
-func AddSideEffectDaemon(ctx context.Context, data *model.SideEffectData) error {
-	payload, err := sonic.MarshalString(data)
-	if err != nil {
-		log.Error(ctx, "AddSideEffectDaemon call MarshalString data fail.", zap.Any("data", data), zap.Error(err))
-		return err
-	}
-
-	err = mqTool.Send(ctx, payload)
-	if err != nil {
-		log.Error(ctx, "AddSideEffectDaemon call mqTool.Send fail.", zap.String("payload", payload), zap.Error(err))
-		return err
-	}
-	return nil
 }
 
 type triggerSideEffectAppFilterReq struct {
@@ -66,15 +51,8 @@ type triggerSideEffectAppFilterReq struct {
 	Name string
 }
 
-/*
-立即触发副作用
-
-	data 副作用数据
-	t 副作用类型
-	fn 如何处理副作用
-*/
-func TriggerSideEffect(ctx context.Context, data *model.SideEffectData, fn SideEffectProcess) error {
-
+// 处理每个副作用
+func processAllSideEffect(ctx context.Context, data *model.SideEffectData, fn SideEffectProcess) error {
 	// 检查积分类型
 	st, err := score_type.GetScoreType(ctx, data.ScoreTypeID)
 	if err != nil {
@@ -100,7 +78,7 @@ func TriggerSideEffect(ctx context.Context, data *model.SideEffectData, fn SideE
 				log.Error(ctx, "TriggerSideEffect call GetOrderSideEffectStatus fail.", zap.Int("SideNameType", int(data.Type)), zap.String("SideEffectName", name), zap.Any("data", data), zap.Error(err))
 				return err
 			}
-			if ok {
+			if ok { // 已处理成功
 				return nil
 			}
 
@@ -135,4 +113,44 @@ func TriggerSideEffect(ctx context.Context, data *model.SideEffectData, fn SideE
 		return err
 	}
 	return nil
+}
+
+// 为副作用添加一个守护程序, 延迟一定时间后触发副作用, 如果失败会延迟一定时间后对失败的副作用重试
+func AddSideEffectDaemon(ctx context.Context, data *model.SideEffectData) error {
+	payload, err := sonic.MarshalString(data)
+	if err != nil {
+		log.Error(ctx, "AddSideEffectDaemon call MarshalString data fail.", zap.Any("data", data), zap.Error(err))
+		return err
+	}
+
+	err = mqTool.Send(ctx, payload)
+	if err != nil {
+		log.Error(ctx, "AddSideEffectDaemon call mqTool.Send fail.", zap.String("payload", payload), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+/*
+立即触发副作用
+
+	data 副作用数据
+	t 副作用类型
+	fn 如何处理副作用
+
+立即根据传入的副作用类型(data.Type)决定调用哪个副作用, 如果调用成功则标记该副作用类型中注册的副作用对该条数据处理为成功, 即使守护进程发生重试数据处理也不会再次调用该副作用了.
+*/
+func TriggerSideEffect(ctx context.Context, data *model.SideEffectData) error {
+	// 检查积分类型
+	st, err := score_type.GetScoreType(ctx, data.ScoreTypeID)
+	if err != nil {
+		log.Error(ctx, "TriggerSideEffect call GetScoreType fail.", zap.Int("SideNameType", int(data.Type)), zap.Any("data", data), zap.Error(err))
+		return err
+	}
+
+	r, ok := sideEffectTypeProcessResolver[data.Type]
+	if ok {
+		return r(ctx, st, data)
+	}
+	return fmt.Errorf("compensationSideEffect got not supported type=%d", data.Type)
 }

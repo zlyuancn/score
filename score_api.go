@@ -220,10 +220,7 @@ func (s scoreCli) beforeScoreOp(ctx context.Context, op model.OpType, scoreTypeI
 		Score:       score,
 		Remark:      remark,
 	}
-	err = side_effect.TriggerSideEffect(ctx, data,
-		func(ctx context.Context, seName string, se side_effect.SideEffect, st *model.ScoreType, data *model.SideEffectData) error {
-			return se.BeforeScoreChange(ctx, st, data)
-		})
+	err = side_effect.TriggerSideEffect(ctx, data)
 	if err != nil {
 		log.Error(ctx, "beforeScoreOp call side_effect.TriggerSideEffect BeforeScoreChange fail.", zap.Any("data", data), zap.Error(err))
 		return nil, err
@@ -291,10 +288,7 @@ func (s scoreCli) afterScoreOp(ctx context.Context, op model.OpType, scoreTypeID
 			Score:       score,
 			Remark:      remark,
 		}
-		return side_effect.TriggerSideEffect(cloneCtx, data,
-			func(ctx context.Context, seName string, se SideEffect, st *model.ScoreType, data *model.SideEffectData) error {
-				return se.AfterScoreChange(ctx, st, data, flow)
-			})
+		return side_effect.TriggerSideEffect(cloneCtx, data)
 	}, func(err error) {
 		if err != nil {
 			log.Error(cloneCtx, "afterScoreOp call side_effect.TriggerScoreChange fail.", zap.Any("flow", flow), zap.Error(err))

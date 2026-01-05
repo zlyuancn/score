@@ -10,6 +10,12 @@ import (
 	"github.com/zlyuancn/score/model"
 )
 
+func beforeScoreChange(ctx context.Context, st *model.ScoreType, data *model.SideEffectData) error {
+	return processAllSideEffect(ctx, data, func(ctx context.Context, seName string, se SideEffect, st *model.ScoreType, data *model.SideEffectData) error {
+		return se.BeforeScoreChange(ctx, st, data)
+	})
+}
+
 func afterScoreChangeHandle(ctx context.Context, st *model.ScoreType, data *model.SideEffectData) error {
 	// 获取状态
 	orderData, orderStatus, err := dao.GetOrderStatus(ctx, data.OrderID, data.Uid)
@@ -37,11 +43,10 @@ func afterScoreChangeHandle(ctx context.Context, st *model.ScoreType, data *mode
 		Remark:      data.Remark,
 	}
 
-	// 触发积分变更副作用
-	err = TriggerSideEffect(ctx, data,
-		func(ctx context.Context, seName string, se SideEffect, st *model.ScoreType, data *model.SideEffectData) error {
-			return se.AfterScoreChange(ctx, st, data, flow)
-		})
+	// 处理积分变更副作用
+	err = processAllSideEffect(ctx, data, func(ctx context.Context, seName string, se SideEffect, st *model.ScoreType, data *model.SideEffectData) error {
+		return se.AfterScoreChange(ctx, st, data, flow)
+	})
 	if err != nil {
 		log.Error(ctx, "afterScoreChangeHandle call side_effect.TriggerScoreChange fail.", zap.Any("flow", flow), zap.Error(err))
 		return err
